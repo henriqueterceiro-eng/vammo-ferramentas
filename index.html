@@ -653,6 +653,28 @@ function precos(f){
   return {ultimo: ord[0].vunit, medio: qt ? vl/qt : null,
           menor: Math.min(...h.map(c=>c.vunit)), compras: h.length};
 }
+/* Preço que a ferramenta já tinha cadastrado. Ao conferir uma nota, as compras
+   dessa mesma nota são ignoradas — senão o preço novo vira a própria referência
+   e a divergência some. */
+function precoRef(f, nfIgnorar, ateIso){
+  if(!f) return null;
+  const h = (f.hist||[]).filter(c => c.vunit > 0 &&
+    (!nfIgnorar || String(c.nf) !== String(nfIgnorar)) &&
+    (!ateIso || (c.iso || '') < ateIso));   // o que valia quando a nota chegou
+  if(!h.length) return null;
+  const ord = h.slice().sort((a,b)=> (b.iso||'').localeCompare(a.iso||''));
+  const qt = h.reduce((x,c)=>x+(c.qtd||0),0), vl = h.reduce((x,c)=>x+c.vunit*(c.qtd||0),0);
+  const modo = {ultimo: ord[0].vunit, medio: qt ? vl/qt : ord[0].vunit,
+                menor: Math.min(...h.map(c=>c.vunit))};
+  return modo[BD.cfg.criterio] != null ? modo[BD.cfg.criterio] : ord[0].vunit;
+}
+/* quanto a diferença pesa: até 1% é arredondamento, 5% para cima já é aviso forte */
+function pesoDif(novo, ref){
+  if(!ref || !novo) return null;
+  const pct = (novo - ref) / ref * 100;
+  return {pct, nivel: Math.abs(pct) < 1 ? 'nenhum' : (Math.abs(pct) < 5 ? 'leve' : 'forte')};
+}
+
 function precoUsado(f){
   const p = precos(f);
   return p[BD.cfg.criterio] != null ? p[BD.cfg.criterio] : p.ultimo;
@@ -724,6 +746,7 @@ function prepararConferencia(r, vistas){
       vtotal: it.vtotal, ncm: it.ncm, codigo: it.codigo,
       destino: par ? par.f.id : 'novo',     // 'novo' | id do catálogo | 'pular'
       sugerido: par ? par.f.id : null, conf: par ? par.p : 0,
+      precoAnt: par ? precoRef(par.f, r.meta.numero, isoDeBR(r.meta.data)) : null,
       categoria: par ? (par.f.categoria||'') : ''
     };
   });
@@ -742,8 +765,19 @@ function pintaConferencia(){
              : '<span class="tag sem">⚠ soma ' + fmtR$(r.soma) + ' ≠ nota ' + fmtR$(r.totalNota) + '</span>';
     const opts = f => BD.catalogo.slice().sort((a,b)=>a.nome.localeCompare(b.nome))
       .map(c => '<option value="'+c.id+'"'+(f.destino===c.id?' selected':'')+'>'+esc(c.nome)+'</option>').join('');
+    const mexeu = r.linhas.filter(l => {
+      const v = pesoDif(l.vunit, l.precoAnt); return v && v.nivel !== 'nenhum';
+    });
     return '' +
     '<div class="card" style="background:#0f161b">' +
+      (mexeu.length ? '<div class="aviso ' +
+        (mexeu.some(l => Math.abs(pesoDif(l.vunit,l.precoAnt).pct) >= 5) ? 'er' : 'at') + '">' +
+        '<b>⚠ ' + mexeu.length + ' ferramenta(s) com preço diferente do cadastrado</b>' +
+        '<ul style="margin:6px 0 0 16px;padding:0">' + mexeu.slice(0,5).map(l => {
+          const v = pesoDif(l.vunit, l.precoAnt);
+          return '<li>' + esc(l.nome.slice(0,46)) + ': era ' + fmtR$(l.precoAnt) +
+                 ', agora ' + fmtR$(l.vunit) + ' <b>(' + (v.pct>0?'▲ +':'▼ ') + v.pct.toFixed(1) + '%)</b></li>';
+        }).join('') + (mexeu.length>5 ? '<li>e mais '+(mexeu.length-5)+'…</li>' : '') + '</ul></div>' : '') +
       '<div class="linha" style="margin-bottom:10px">' +
         '<div><b>' + esc(m.fornecedor || r.arquivo) + '</b>' +
           '<div style="color:var(--txt2);font-size:12px">NF ' + esc(m.numero||'?') + ' · ' +
@@ -762,7 +796,15 @@ function pintaConferencia(){
           '<td><input value="'+esc(f.nome)+'" oninput="edLinha('+ri+','+fi+',\'nome\',this.value)"></td>' +
           '<td style="width:70px"><input value="'+esc(f.un)+'" oninput="edLinha('+ri+','+fi+',\'un\',this.value)"></td>' +
           '<td class="num" style="width:90px"><input class="num" style="text-align:right" value="'+fmtN(f.qtd,2)+'" onchange="edNum('+ri+','+fi+',\'qtd\',this.value)"></td>' +
-          '<td class="num" style="width:110px"><input style="text-align:right" value="'+fmtN(f.vunit,2)+'" onchange="edNum('+ri+','+fi+',\'vunit\',this.value)"></td>' +
+          '<td class="num" style="width:120px"><input style="text-align:right" value="'+fmtN(f.vunit,2)+'" onchange="edNum('+ri+','+fi+',\'vunit\',this.value)">' +
+            (function(){
+              const v = pesoDif(f.vunit, f.precoAnt);
+              if(!v || v.nivel === 'nenhum') return '';
+              const cor = v.nivel === 'forte' ? 'var(--erro)' : 'var(--alerta)';
+              return '<div style="font-size:10.5px;color:'+cor+';margin-top:3px" title="preço já cadastrado: '+
+                     fmtR$(f.precoAnt)+'">era '+fmtR$(f.precoAnt)+' ('+(v.pct>0?'▲ +':'▼ ')+v.pct.toFixed(1)+'%)</div>';
+            })() +
+          '</td>' +
           '<td><select onchange="edLinha('+ri+','+fi+',\'destino\',this.value)">' +
             '<option value="novo"'+(f.destino==='novo'?' selected':'')+'>➕ Nova ferramenta</option>' +
             '<option value="pular"'+(f.destino==='pular'?' selected':'')+'>✕ Não é ferramenta (pular)</option>' +
@@ -1191,20 +1233,26 @@ async function anexaNF(pid, file){
     p.nf = {arquivo: chave, nomeArquivo: file.name, numero: r.meta.numero, data: r.meta.data,
             chaveNF: r.meta.chave, fornecedor: r.meta.fornecedor,
             total: r.totalNota != null ? r.totalNota : r.soma, soma: r.soma,
-            itens: r.itens, conferencia: confereNF(p, r.itens)};
+            itens: r.itens,
+            conferencia: confereNF(p, r.itens, {numero: r.meta.numero, data: r.meta.data})};
     if(!p.fornecedor.trim() && r.meta.fornecedor) p.fornecedor = r.meta.fornecedor;
     salva(); pintaPedidos();
     const d = p.nf.conferencia;
-    aviso(d.divergencias.length ? 'NF anexada — ' + d.divergencias.length + ' divergência(s) para conferir.'
-                                : 'NF anexada e conferida: bate com o pedido.');
+    const subiu = (d.avisosPreco||[]).filter(a => a.pct > 0);
+    if(subiu.length)
+      aviso('⚠ NF anexada — ' + subiu.length + ' item(ns) com preço acima do cadastrado (maior: ' +
+            subiu[0].nome.slice(0,30) + ' ' + (subiu[0].pct>0?'+':'') + subiu[0].pct.toFixed(1) + '%).', 6500);
+    else if(d.divergencias.length)
+      aviso('NF anexada — ' + d.divergencias.length + ' divergência(s) para conferir.', 5000);
+    else aviso('NF anexada e conferida: bate com o pedido e com o preço cadastrado.');
   }catch(e){ aviso('Não consegui ler esse PDF: ' + e.message, 5000); }
 }
 
 /* Confere o que a nota traz contra o que foi pedido. Casa pelo mesmo critério do
    catálogo (tipo + medida), então marca/código do fornecedor não atrapalham. */
-function confereNF(p, itensNF){
+function confereNF(p, itensNF, dadosNF){
   const sobrando = itensNF.map((it,i) => ({i, it, usado:false}));
-  const linhas = [], divergencias = [];
+  const linhas = [], divergencias = [], avisosPreco = [];
   // o item do pedido responde pelo nome do catálogo E por todos os apelidos dele
   // (a descrição crua da nota costuma ser um deles)
   const apelidos = ped => {
@@ -1224,9 +1272,16 @@ function confereNF(p, itensNF){
     alvo.usado = true;
     const dq = (alvo.it.qtd||0) - (ped.qtd||0);
     const dp = +((alvo.it.vunit||0) - (ped.preco||0)).toFixed(2);
+    const fcat = BD.catalogo.find(c => c.id === ped.catId);
+    const nfInfo = dadosNF || p.nf || {};
+    const pcat = precoRef(fcat, nfInfo.numero, isoDeBR(nfInfo.data));
+    const vs = pesoDif(alvo.it.vunit, pcat);
     linhas.push({nome: ped.nome, situacao: (dq||dp) ? 'difere' : 'ok',
                  qtdPed: ped.qtd, qtdNF: alvo.it.qtd, precoPed: ped.preco, precoNF: alvo.it.vunit,
-                 dq, dp});
+                 precoCat: pcat, vsCat: vs, dq, dp});
+    if(vs && vs.nivel !== 'nenhum')
+      avisosPreco.push({nome: ped.nome, de: pcat, para: alvo.it.vunit,
+                        pct: vs.pct, nivel: vs.nivel});
     if(dq) divergencias.push(ped.nome + ': pedi ' + fmtN(ped.qtd,0) + ', veio ' + fmtN(alvo.it.qtd,0));
     if(dp) divergencias.push(ped.nome + ': combinado ' + fmtR$(ped.preco) + ', na NF ' + fmtR$(alvo.it.vunit));
   }
@@ -1235,7 +1290,8 @@ function confereNF(p, itensNF){
     divergencias.push('Veio na NF sem estar no pedido: ' + s.it.descricao);
   }
   const totalNF = itensNF.reduce((x,i)=>x+i.vtotal,0);
-  return {linhas, divergencias, totalNF: +totalNF.toFixed(2),
+  avisosPreco.sort((a,b)=> Math.abs(b.pct) - Math.abs(a.pct));
+  return {linhas, divergencias, avisosPreco, totalNF: +totalNF.toFixed(2),
           totalPedido: +totalPedido(p).toFixed(2)};
 }
 
@@ -1406,6 +1462,23 @@ function htmlListaPedidos(){
     '</div>' +
     (atrasados.length ? '<div class="aviso at">' + atrasados.length +
       ' pedido(s) passaram da data de entrega combinada e ainda não foram marcados como recebidos.</div>' : '') +
+    (function(){
+      // pedidos cuja NF veio com preço fora do cadastrado
+      const comDif = ps.filter(q => q.nf && q.nf.conferencia &&
+                                    (q.nf.conferencia.avisosPreco||[]).length);
+      if(!comDif.length) return '';
+      const forte = comDif.some(q => q.nf.conferencia.avisosPreco.some(a=>a.nivel==='forte'));
+      return '<div class="aviso '+(forte?'er':'at')+'"><b>⚠ Preço fora do cadastrado em ' +
+        comDif.length + ' pedido(s)</b>' +
+        '<ul style="margin:6px 0 0 16px;padding:0">' + comDif.slice(0,4).map(q => {
+          const a = q.nf.conferencia.avisosPreco[0];
+          return '<li><a href="#" onclick="abrePedido(\''+q.id+'\');return false">'+esc(q.numero)+'</a> — ' +
+                 esc(a.nome.slice(0,40)) + ': ' + fmtR$(a.de) + ' → ' + fmtR$(a.para) +
+                 ' <b>(' + (a.pct>0?'+':'') + a.pct.toFixed(1) + '%)</b>' +
+                 (q.nf.conferencia.avisosPreco.length>1 ? ' e mais '+(q.nf.conferencia.avisosPreco.length-1) : '') +
+                 '</li>';
+        }).join('') + '</ul></div>';
+    })() +
     '<div class="card">' +
       '<div class="linha" style="margin-bottom:12px">' +
         '<h2 style="margin:0">Pedidos <span class="cont">'+(ps.length?'('+ps.length+')':'')+'</span></h2>' +
@@ -1528,13 +1601,13 @@ function edItem(pid, n, chave, val){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p || !p.itens[n]) return;
   const v = numBR(val) != null ? numBR(val) : parseFloat(String(val).replace(',','.'));
   if(!isNaN(v)) p.itens[n][chave] = v;
-  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens);
+  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens, p.nf);
   salva(); pintaPedidos();
 }
 function tiraItem2(pid, n){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
   p.itens.splice(n,1);
-  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens);
+  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens, p.nf);
   salva(); pintaPedidos();
 }
 function pintaBuscaItem(){
@@ -1561,7 +1634,7 @@ function addItemPedido(catId){
   const ja = p.itens.find(i=>i.catId===catId);
   if(ja) ja.qtd += qtd;
   else p.itens.push({catId, nome: f.nome, un: f.un||'UN', qtd, preco: precoUsado(f) || 0});
-  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens);
+  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens, p.nf);
   salva(); pintaPedidos();
   const b = document.getElementById('busca-item'); if(b){ b.value=''; b.focus(); }
 }
@@ -1616,28 +1689,49 @@ function blocoAnexo(p, qual){
 
 function htmlConferencia(p, c){
   const dif = c.linhas.filter(l => l.situacao !== 'ok');
-  return '<h2 style="margin-top:18px">Conferência da nota contra o pedido</h2>' +
+  const avisos = c.avisosPreco || [];
+  const fortes = avisos.filter(a => a.nivel === 'forte');
+  const setaPct = v => (v > 0 ? '▲ +' : '▼ ') + v.toFixed(1) + '%';
+  return '<h2 style="margin-top:18px">Conferência da nota</h2>' +
     '<div class="linha" style="margin:8px 0 12px">' +
       '<div class="kpi" style="flex:1 1 180px"><div class="rot">Pedido</div><div class="val">'+fmtR$(c.totalPedido)+'</div></div>' +
       '<div class="kpi" style="flex:1 1 180px;border-left-color:'+(Math.abs(c.totalNF-c.totalPedido)<=0.05?'var(--ok)':'var(--alerta)')+
         '"><div class="rot">Nota fiscal</div><div class="val">'+fmtR$(c.totalNF)+'</div></div>' +
     '</div>' +
+    // 1) preço fora do que já estava cadastrado
+    (avisos.length
+      ? '<div class="aviso '+(fortes.length?'er':'at')+'">' +
+          '<b>⚠ '+avisos.length+' item(ns) com preço diferente do cadastrado</b>' +
+          '<ul style="margin:6px 0 0 16px;padding:0">' +
+          avisos.slice(0,6).map(a =>
+            '<li>'+esc(a.nome)+': era '+fmtR$(a.de)+', nesta nota '+fmtR$(a.para)+
+            ' <b>('+setaPct(a.pct)+')</b></li>').join('') +
+          (avisos.length>6 ? '<li>e mais '+(avisos.length-6)+'…</li>' : '') +
+          '</ul></div>'
+      : '<div class="aviso ok">Preços batem com o que já estava cadastrado.</div>') +
+    // 2) pedido x nota
     (dif.length
-      ? '<div class="aviso at"><b>'+dif.length+' item(ns) para conferir</b></div>'
+      ? '<div class="aviso at"><b>'+dif.length+' item(ns) diferentes do que foi pedido</b></div>'
       : '<div class="aviso ok">A nota bate item a item com o pedido.</div>') +
     '<div class="tabwrap"><table><thead><tr><th>Ferramenta</th><th>Situação</th>' +
       '<th class="num">Qtd pedida</th><th class="num">Qtd na NF</th>' +
-      '<th class="num">Preço combinado</th><th class="num">Preço na NF</th></tr></thead><tbody>' +
+      '<th class="num">Preço combinado</th><th class="num">Preço na NF</th>' +
+      '<th class="num">Já cadastrado</th><th class="num">Variação</th></tr></thead><tbody>' +
     c.linhas.map(l => {
       const selo = {ok:'<span class="tag novo">confere</span>',
                     difere:'<span class="tag dup">difere</span>',
                     faltou:'<span class="tag sem">não veio</span>',
                     extra:'<span class="tag dup">veio a mais</span>'}[l.situacao];
+      const v = l.vsCat;
+      const cor = !v || v.nivel === 'nenhum' ? '' : (v.nivel === 'forte' ? 'var(--erro)' : 'var(--alerta)');
       return '<tr><td>'+esc(l.nome)+'</td><td>'+selo+'</td>' +
         '<td class="num">'+(l.qtdPed!=null?fmtN(l.qtdPed,0):'—')+'</td>' +
         '<td class="num">'+(l.qtdNF!=null?fmtN(l.qtdNF,0):'—')+'</td>' +
         '<td class="num">'+(l.precoPed!=null?fmtR$(l.precoPed):'—')+'</td>' +
-        '<td class="num'+(l.dp?' dif':'')+'">'+(l.precoNF!=null?fmtR$(l.precoNF):'—')+'</td></tr>';
+        '<td class="num'+(l.dp?' dif':'')+'">'+(l.precoNF!=null?fmtR$(l.precoNF):'—')+'</td>' +
+        '<td class="num">'+(l.precoCat!=null?fmtR$(l.precoCat):'<span style="color:var(--txt2)">novo</span>')+'</td>' +
+        '<td class="num"'+(cor?' style="color:'+cor+';font-weight:600"':'')+'>' +
+          (v && v.nivel!=='nenhum' ? setaPct(v.pct) : (l.precoCat!=null?'=':'—')) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 }
 

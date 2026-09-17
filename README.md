@@ -17,7 +17,8 @@ Dois lugares, um arquivo só (`index.html`):
 
 Abra o `index.html` no navegador (duplo clique já funciona) ou pela URL do GitHub Pages.
 
-- **Importar nota**: arraste um ou vários PDFs para a área pontilhada. Cada nota aparece
+- **Importar nota**: arraste um ou vários PDFs para a área pontilhada. Se alguma ferramenta
+  vier com preço diferente do que já estava cadastrado, a tela avisa antes de você gravar. Cada nota aparece
   com um selo: *soma confere com a nota* quer dizer que a soma dos itens lidos bate com o
   "valor total dos produtos" impresso — ou seja, nada ficou de fora.
 - **Conferir**: dá para corrigir nome, unidade, quantidade e valor antes de gravar. Em
@@ -45,9 +46,15 @@ com o boleto anexado.
 
 ### NF e boleto
 
-- **NF**: o app lê o PDF e **compara com o pedido** — item que não veio, quantidade diferente,
-  preço acima do combinado. E o botão *lançar no catálogo* manda a nota para a tela de
-  conferência, alimentando o histórico de preços.
+- **NF**: o app lê o PDF e compara em duas frentes:
+  1. **com o pedido** — item que não veio, quantidade diferente, preço acima do combinado;
+  2. **com o preço já cadastrado** — quanto a Vammo pagava nessa ferramenta antes desta nota.
+  O aviso de preço aparece em três lugares: no toast ao anexar, no topo da conferência
+  (com a variação em %) e na lista de pedidos, com link para o pedido. Até 1% conta como
+  arredondamento; acima de 5% o aviso fica vermelho.
+  A referência é o preço **anterior à nota** — compras da própria nota e de notas mais novas
+  ficam de fora, senão o preço novo viraria a própria referência e a divergência sumiria.
+  O botão *lançar no catálogo* manda a nota para a tela de conferência, alimentando o histórico.
 - **Boleto**: o app lê valor e vencimento da linha digitável, conferindo os dígitos
   verificadores (sem isso a leitura pega dígitos vizinhos e erra a casa decimal).
 - Os PDFs ficam guardados no navegador (IndexedDB) e podem ser abertos a qualquer momento.
