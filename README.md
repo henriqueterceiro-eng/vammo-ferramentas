@@ -125,6 +125,18 @@ carrinho: as 34 ferramentas dela + o carrinho + a pneumática. Duas variações 
 ficaram de fora porque vieram em quantidade menor que 1 por carrinho (marreta de 1,5kg e
 allen abaulada 4mm) — se fizerem parte, é só incluir pelo editor.
 
+### Nome de oficina no catálogo
+
+Onde o termo da nota fiscal confundia, o nome é o da bancada — e o da nota vira apelido:
+*extensão soquete* → **extensor longo**, *catraca cabeça redonda* → **catraca reversível**,
+*alicate tipo telefone* → **alicate de bico**, *chave hexagonal longa* → **allen longa**,
+*chave de impacto Rocking Dog* → **pneumática**, *soquete sextavado encaixe* → **soquete**,
+*chave de fenda cruzada* → **chave de fenda Phillips**.
+
+A busca procura primeiro no nome; só se não achar nada é que vasculha os apelidos (onde
+mora o código do fornecedor). Sem isso, "combinada 10" trazia a de 12mm, cujo código é
+102007MY. Digitar o código do fornecedor também funciona.
+
 ### Busca entende o nome de oficina
 
 A mesma ferramenta tem nome diferente na bancada e na nota fiscal. A busca já traduz:
