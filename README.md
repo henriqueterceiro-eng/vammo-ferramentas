@@ -71,8 +71,16 @@ continua achando pelo código. Nada de duplicata: quando a mesma ferramenta apar
 marcas diferentes, virou **uma** ferramenta com as duas compras no histórico, e o nome
 fica sem marca (ex.: "Chave combinada 10mm", comprada Gedore e Mayle).
 
-Esse arquivo **não deve ir para o repositório público** — são os preços de compra da
-Vammo. Deixe ele fora do git (já está no `.gitignore`) e carregue pelo Restaurar.
+O catálogo vem **embutido no app**: abrir o link já mostra as 60 ferramentas, sem precisar
+carregar nada. Ele só entra em navegador zerado — nunca por cima do que você já cadastrou.
+Se o catálogo estiver vazio, aparece o botão *carregar o catálogo da ANT* para trazer de volta.
+
+⚠️ **Por decisão do dono do app, o catálogo está no repositório público**: qualquer pessoa
+com o link (ou navegando o GitHub) consegue ler o que a Vammo paga por cada ferramenta e de
+quais fornecedores. Para fechar isso sem perder a praticidade, o caminho é Cloudflare Pages
+com Access (login @vammo.com), também no plano grátis.
+
+O `catalogo_ant.json` continua na pasta como backup solto e segue fora do git.
 
 ## Onde os dados ficam
 
@@ -88,8 +96,8 @@ mesmo da Torre: Cloudflare Pages + D1 + login @vammo.com.
 
 ## Publicar no GitHub Pages
 
-Repositório **público** = grátis. Como o app sobe vazio (os dados ficam no seu
-navegador), nenhum preço da Vammo vai para a internet.
+Repositório **público** = grátis — e, como o catálogo está embutido no `index.html`,
+os preços de compra ficam públicos junto (veja o aviso acima).
 
 ```bash
 git init
