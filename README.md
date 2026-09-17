@@ -100,7 +100,7 @@ O `catalogo_ant.json` continua na pasta como backup solto e segue fora do git.
 
 Conjunto que se compra junto. Vem um pronto: **Carrinho para mecânicos (completo)** —
 carrinho de 2 gavetas + o ferramental do mecânico + a chave de impacto pneumática,
-**24 itens, R$ 1.565,91** por carrinho montado.
+**36 itens, R$ 1.962,44** por carrinho montado.
 
 - Na aba **Catálogo**, o card *Kits* mostra o custo e abre o editor: dá para **incluir e
   excluir** ferramentas e mudar a quantidade de cada uma.
@@ -110,9 +110,16 @@ carrinho de 2 gavetas + o ferramental do mecânico + a chave de impacto pneumát
   linha que já existe em vez de duplicar.
 
 A composição saiu da NF 660524, que trouxe 10 carrinhos com 1 de cada ferramenta por
-carrinho. Ela tinha 35 itens; os 12 que não entraram (jogo de soquetes 1/2", catraca,
-extensor, combinada 32mm e allen 4/6mm — R$ 396,53 por carrinho) ficaram de fora por
-decisão de uso e podem ser incluídos pelo editor a qualquer momento.
+carrinho: as 34 ferramentas dela + o carrinho + a pneumática. Duas variações de modelo
+ficaram de fora porque vieram em quantidade menor que 1 por carrinho (marreta de 1,5kg e
+allen abaulada 4mm) — se fizerem parte, é só incluir pelo editor.
+
+### Busca entende o nome de oficina
+
+A mesma ferramenta tem nome diferente na bancada e na nota fiscal. A busca já traduz:
+**allen ↔ hexagonal**, **chave L ↔ biela**, **philips ↔ cruzada**, **bico ↔ telefone/meia
+cana**, **extensor ↔ extensão**, **catraca ↔ roquete**, **pneumática ↔ impacto**. Vale nos
+três lugares: catálogo, montagem de kit e busca de item do pedido.
 
 ## Onde os dados ficam
 
