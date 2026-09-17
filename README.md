@@ -96,6 +96,24 @@ com Access (login @vammo.com), também no plano grátis.
 
 O `catalogo_ant.json` continua na pasta como backup solto e segue fora do git.
 
+## Kits (combos)
+
+Conjunto que se compra junto. Vem um pronto: **Carrinho para mecânicos (completo)** —
+carrinho de 2 gavetas + o ferramental do mecânico + a chave de impacto pneumática,
+**24 itens, R$ 1.565,91** por carrinho montado.
+
+- Na aba **Catálogo**, o card *Kits* mostra o custo e abre o editor: dá para **incluir e
+  excluir** ferramentas e mudar a quantidade de cada uma.
+- No **pedido**, digite parte do nome e o kit aparece marcado com 🧰 — um clique traz todas
+  as ferramentas dele de uma vez, cada linha identificada como *do kit*. O campo *Qtd* vale
+  como número de kits (2 = dois carrinhos completos), e pedir o mesmo kit de novo soma na
+  linha que já existe em vez de duplicar.
+
+A composição saiu da NF 660524, que trouxe 10 carrinhos com 1 de cada ferramenta por
+carrinho. Ela tinha 35 itens; os 12 que não entraram (jogo de soquetes 1/2", catraca,
+extensor, combinada 32mm e allen 4/6mm — R$ 396,53 por carrinho) ficaram de fora por
+decisão de uso e podem ser incluídos pelo editor a qualquer momento.
+
 ## Onde os dados ficam
 
 No navegador desta máquina (localStorage) — nada é enviado para lugar nenhum, e a leitura
