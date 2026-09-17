@@ -1,5 +1,7 @@
 # Ferramentas Vammo
 
+**No ar:** https://henriqueterceiro-eng.github.io/vammo-ferramentas/
+
 Dois lugares, um arquivo só (`index.html`):
 
 1. **Notas fiscais** — você joga o PDF do DANFE e o app lê sozinho as ferramentas, a
