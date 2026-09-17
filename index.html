@@ -498,7 +498,16 @@ function metaNota(texto){
     m = T.match(/N[º°O]?\.?\s*:?\s*((?:\d{1,3}[.\s]){0,2}\d{3,9})\s*(?:SERIE|S[EÉ]RIE|FL|FOLHA)/);
     if(m) numero = m[1].replace(/\D/g,'').replace(/^0+/,'');
   }
-  return {chave, numero, data, fornecedor: forn, cnpj: chave ? chave.substr(6,14) : ''};
+  // sem chave de acesso legível, o CNPJ do emitente é o primeiro que não é o da Vammo
+  let cnpj = chave ? chave.substr(6,14) : '';
+  if(!cnpj){
+    const CNPJ_VAMMO = '47418909000128';
+    for(const m of T.matchAll(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g)){
+      const d = m[0].replace(/\D/g,'');
+      if(d !== CNPJ_VAMMO){ cnpj = d; break; }
+    }
+  }
+  return {chave, numero, data, fornecedor: forn, cnpj};
 }
 
 /* "Valor total dos produtos" impresso na nota: o texto do PDF sai desordenado,
@@ -1164,6 +1173,43 @@ const ETAPAS = [
 const etapa    = id => ETAPAS.find(e => e.id === id) || ETAPAS[0];
 const idxEtapa = id => Math.max(0, ETAPAS.findIndex(e => e.id === id));
 
+/* Fornecedor de pedido é escolhido de uma lista, não digitado: assim o nome não
+   varia de um pedido para o outro e dá para conferir o CNPJ contra a nota. */
+const FORNECEDORES_PADRAO = [{
+  id: 'ant',
+  nome: 'ANT Ferramentas',
+  razao: 'ANT FERRAMENTAS COML E IMP LTDA',
+  cnpj: '74.671.991/0001-70',
+  ie: '114005696113',
+  endereco: 'Rua Piratininga, 826/832 — Brás — São Paulo/SP — CEP 03042-000',
+  telefone: '(11) 3345-3200',
+  email: 'financeiro3@antferramentas.com.br',
+  site: 'www.antferramentas.com.br',
+}];
+const soDigitos = v => (v||'').replace(/\D/g,'');
+const fornecedor = fid => (BD.fornecedores||[]).find(f => f.id === fid) || null;
+function garanteFornecedores(){
+  if(!Array.isArray(BD.fornecedores) || !BD.fornecedores.length)
+    BD.fornecedores = JSON.parse(JSON.stringify(FORNECEDORES_PADRAO));
+}
+
+/* Bases da Vammo conforme o cadastro de oficinas (mechanics_r.location).
+   "Nova base" fica no fim porque comprar ferramental é justamente o que se faz
+   quando a base ainda não existe. */
+const BASES = [
+  {id:'sbc',        nome:'SBC',         locId:1},
+  {id:'osasco',     nome:'Osasco',      locId:2},
+  {id:'mooca',      nome:'Mooca',       locId:3},
+  {id:'sao_mateus', nome:'São Mateus',  locId:71},
+  {id:'outra',      nome:'Nova base / outro destino', livre:true},
+];
+const base = bid => BASES.find(b => b.id === bid) || null;
+function nomeBase(q){
+  const b = base(q.baseId);
+  if(!b) return q.base || '';
+  return b.livre ? (q.base || b.nome) : b.nome;
+}
+
 const VAMMO = {
   razao: 'VAMMO S.A.', cnpj: '47.418.909/0001-28',
   endereco: 'R. Santa Justina, 434 — Vila Olímpia — São Paulo/SP — CEP 04545-042'
@@ -1182,6 +1228,15 @@ function proxNumero(){
 /* Listas da versão anterior viram pedidos em rascunho — ninguém perde o que montou. */
 function migraParaPedidos(){
   if(!BD.pedidos) BD.pedidos = [];
+  garanteFornecedores();
+  for(const q of BD.pedidos){
+    if(q.fornecedorId) continue;
+    const alvo = BD.fornecedores.find(f =>
+      semAcento(f.nome) === semAcento(q.fornecedor||'') ||
+      semAcento(f.razao) === semAcento(q.fornecedor||'') ||
+      (q.nf && q.nf.chaveNF && soDigitos(f.cnpj) === q.nf.chaveNF.substr(6,14)));
+    if(alvo){ q.fornecedorId = alvo.id; q.fornecedor = alvo.nome; }
+  }
   if(BD.listas && BD.listas.length){
     for(const l of BD.listas){
       BD.pedidos.push({
@@ -1206,7 +1261,11 @@ function pedidoAtual(){
 const totalPedido = p => (p.itens||[]).reduce((s,i)=> s + (i.qtd||0)*(i.preco||0), 0);
 
 function novoPedido(){
-  const p = {id:id(), numero: proxNumero(), fornecedor:'', contato:'', base:'', obs:'',
+  garanteFornecedores();
+  const unico = BD.fornecedores.length === 1 ? BD.fornecedores[0] : null;
+  const p = {id:id(), numero: proxNumero(),
+             fornecedorId: unico ? unico.id : '', fornecedor: unico ? unico.nome : '',
+             contato:'', base:'', obs:'',
              status:'rascunho', itens:[], historico:[{status:'rascunho', iso:hojeISO()}],
              criadoEm:new Date().toISOString()};
   BD.pedidos.push(p); BD.cfg.pedidoAberto = p.id; salva(); pintaPedidos();
@@ -1224,7 +1283,8 @@ function mudaStatus(pid, novo){
     aviso('Anexe o boleto antes de marcar esta etapa.'); return;
   }
   if(novo !== 'rascunho' && !p.itens.length){ aviso('O pedido está sem itens.'); return; }
-  if(novo !== 'rascunho' && !p.fornecedor.trim()){ aviso('Informe o fornecedor.'); return; }
+  if(novo !== 'rascunho' && !p.fornecedorId){ aviso('Escolha o fornecedor do pedido.'); return; }
+  if(novo !== 'rascunho' && !nomeBase(p)){ aviso('Escolha a base de entrega.'); return; }
   p.status = novo;
   p.historico = p.historico || [];
   p.historico.push({status: novo, iso: hojeISO()});
@@ -1247,7 +1307,17 @@ async function anexaNF(pid, file){
             total: r.totalNota != null ? r.totalNota : r.soma, soma: r.soma,
             itens: r.itens,
             conferencia: confereNF(p, r.itens, {numero: r.meta.numero, data: r.meta.data})};
-    if(!p.fornecedor.trim() && r.meta.fornecedor) p.fornecedor = r.meta.fornecedor;
+    // o CNPJ vem dentro da chave de acesso: posição 7 a 20
+    const cnpjNota = r.meta.cnpj || '';
+    const doPedido = fornecedor(p.fornecedorId);
+    if(!p.fornecedorId && cnpjNota){
+      const achado = (BD.fornecedores||[]).find(f => soDigitos(f.cnpj) === cnpjNota);
+      if(achado){ p.fornecedorId = achado.id; p.fornecedor = achado.nome; }
+    }
+    p.nf.cnpjNota = cnpjNota;
+    p.nf.fornecedorConfere = !(doPedido && cnpjNota && soDigitos(doPedido.cnpj) !== cnpjNota);
+    if(p.nf.fornecedorConfere === false)
+      aviso('⚠ Esta nota é de outro CNPJ (' + cnpjNota + '), não de ' + doPedido.nome + '.', 7000);
     salva(); pintaPedidos();
     const d = p.nf.conferencia;
     const subiu = (d.avisosPreco||[]).filter(a => a.pct > 0);
@@ -1403,7 +1473,7 @@ function textoWhatsApp(p){
   const L = [];
   L.push('*PEDIDO ' + p.numero + ' — ' + VAMMO.razao + '*');
   if(p.fornecedor) L.push('Fornecedor: ' + p.fornecedor);
-  if(p.base) L.push('Entrega: ' + p.base);
+  if(nomeBase(p)) L.push('Entrega: ' + nomeBase(p));
   L.push('');
   p.itens.forEach((i,n) => L.push(
     (n+1) + ') ' + i.nome + ' — ' + fmtN(i.qtd,0) + ' ' + (i.un||'UN') +
@@ -1437,7 +1507,7 @@ function csvPedido(pid){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
   const linhas = [['Pedido','Fornecedor','Entrega','Ferramenta','Unidade','Quantidade','Valor unitario','Total']];
   for(const i of p.itens)
-    linhas.push([p.numero, p.fornecedor, p.base, i.nome, i.un||'UN', i.qtd,
+    linhas.push([p.numero, p.fornecedor, nomeBase(p), i.nome, i.un||'UN', i.qtd,
                  (i.preco||0).toFixed(2).replace('.',','), ((i.qtd||0)*(i.preco||0)).toFixed(2).replace('.',',')]);
   linhas.push(['','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
   const csv = '﻿' + linhas.map(l => l.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
@@ -1506,7 +1576,7 @@ function htmlListaPedidos(){
         return '<tr>' +
           '<td><b>'+esc(p.numero)+'</b></td>' +
           '<td>'+esc(p.fornecedor || '—')+'</td>' +
-          '<td>'+esc(p.base || '—')+'</td>' +
+          '<td>'+esc(nomeBase(p) || '—')+'</td>' +
           '<td class="num">'+(p.itens||[]).length+'</td>' +
           '<td class="num"><b>'+fmtR$(totalPedido(p))+'</b></td>' +
           '<td>'+chipStatus(p.status)+'</td>' +
@@ -1550,9 +1620,30 @@ function htmlPedido(p){
   '<div class="card">' +
     '<h2>Dados do pedido</h2>' +
     '<div class="grade">' +
-      campo('Fornecedor', 'texto', p.id, 'fornecedor', p.fornecedor) +
+      (function(){
+        garanteFornecedores();
+        const f = fornecedor(p.fornecedorId);
+        return '<div><label class="campo">Fornecedor</label>' +
+          '<select onchange="edPedido(\''+p.id+'\',\'fornecedorId\',this.value)">' +
+            '<option value="">— escolha o fornecedor —</option>' +
+            BD.fornecedores.map(x => '<option value="'+x.id+'"'+(p.fornecedorId===x.id?' selected':'')+
+                                     '>'+esc(x.nome)+'</option>').join('') +
+          '</select>' +
+          (f ? '<div style="font-size:11px;color:var(--txt2);margin-top:4px">CNPJ '+esc(f.cnpj)+
+               (f.telefone ? ' · '+esc(f.telefone) : '')+'</div>' : '') +
+        '</div>';
+      })() +
       campo('Contato / vendedor', 'texto', p.id, 'contato', p.contato) +
-      campo('Entregar em (base)', 'texto', p.id, 'base', p.base) +
+      '<div><label class="campo">Entregar em (base)</label>' +
+        '<select onchange="edPedido(\'' + p.id + '\',\'baseId\',this.value)">' +
+          '<option value="">— escolha a base —</option>' +
+          BASES.map(b => '<option value="'+b.id+'"'+(p.baseId===b.id?' selected':'')+'>'+
+                         esc(b.nome)+'</option>').join('') +
+        '</select>' +
+        (base(p.baseId) && base(p.baseId).livre
+          ? '<input style="margin-top:6px" placeholder="nome ou endereço do destino" value="'+esc(p.base||'')+
+            '" onchange="edPedido(\''+p.id+'\',\'base\',this.value)">' : '') +
+      '</div>' +
       campo('Enviado ao fornecedor em', 'data', p.id, 'dtSolicitado', p.dtSolicitado) +
       campo('Entrega combinada', 'data', p.id, 'dtEntrega', p.dtEntrega) +
       campo('Recebido em', 'data', p.id, 'dtRecebido', p.dtRecebido) +
@@ -1606,8 +1697,18 @@ function campo(rot, tipo, pid, chave, valor){
 }
 function edPedido(pid, chave, val){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
-  p[chave] = val; salva();
-  if(['fornecedor','base','dtEntrega'].includes(chave)) pintaPedidos();
+  p[chave] = val;
+  if(chave === 'fornecedorId'){
+    const f = fornecedor(val);
+    p.fornecedor = f ? f.nome : '';
+    if(f && f.contatoPadrao && !p.contato) p.contato = f.contatoPadrao;
+  }
+  if(chave === 'baseId'){
+    const b = base(val);
+    p.base = (b && !b.livre) ? b.nome : (b ? (p.base||'') : '');
+  }
+  salva();
+  if(['fornecedorId','baseId','base','dtEntrega'].includes(chave)) pintaPedidos();
 }
 function edItem(pid, n, chave, val){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p || !p.itens[n]) return;
@@ -1778,8 +1879,13 @@ function imprimePedido(pid){
         '<div class="doc-num">PEDIDO<br><b>'+esc(p.numero)+'</b><br><small>'+brDeISO(p.dtSolicitado||hojeISO())+'</small></div>' +
       '</div>' +
       '<table class="doc-cab"><tr>' +
-        '<td><small>FORNECEDOR</small><br><b>'+esc(p.fornecedor||'—')+'</b>'+(p.contato?'<br>'+esc(p.contato):'')+'</td>' +
-        '<td><small>ENTREGAR EM</small><br><b>'+esc(p.base||'—')+'</b></td>' +
+        (function(){
+          const f = fornecedor(p.fornecedorId);
+          return '<td><small>FORNECEDOR</small><br><b>'+esc(f ? f.razao : (p.fornecedor||'—'))+'</b>' +
+                 (f ? '<br>CNPJ '+esc(f.cnpj)+(f.telefone?' · '+esc(f.telefone):'') : '') +
+                 (p.contato ? '<br>'+esc(p.contato) : '') + '</td>';
+        })() +
+        '<td><small>ENTREGAR EM</small><br><b>'+esc(nomeBase(p)||'—')+'</b></td>' +
         '<td><small>ENTREGA COMBINADA</small><br><b>'+(p.dtEntrega?brDeISO(p.dtEntrega):'a combinar')+'</b></td>' +
       '</tr></table>' +
       '<table class="doc-itens"><thead><tr><th>#</th><th>Ferramenta</th><th>Un</th>' +
@@ -1882,7 +1988,7 @@ document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
 });
 
-const APP_VERSAO = 'v5 · 17/09/2026';
+const APP_VERSAO = 'v6 · 17/09/2026';
 carrega();
 semeiaSePrecisar();
 (function mostraVersao(){

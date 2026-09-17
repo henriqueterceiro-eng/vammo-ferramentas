@@ -24,8 +24,22 @@ Abra o `index.html` no navegador (duplo clique já funciona) ou pela URL do GitH
 - **Conferir**: dá para corrigir nome, unidade, quantidade e valor antes de gravar. Em
   *Destino* você decide se a linha vira ferramenta nova, se junta a uma que já existe
   (o app sugere quando reconhece) ou se é pulada (frete, material que não é ferramenta).
-- **Abrir um pedido**: aba *Pedidos* → **+ Novo pedido** → preencha fornecedor e base,
-  busque as ferramentas e ajuste quantidade e preço. O total recalcula na hora.
+- **Abrir um pedido**: aba *Pedidos* → **+ Novo pedido** → escolha o fornecedor e a base
+  (os dois são listas, não texto livre), busque as ferramentas e ajuste quantidade e preço.
+  O total recalcula na hora.
+
+### Fornecedores e bases
+
+**Fornecedor** é escolhido de uma lista — hoje só a **ANT Ferramentas** (razão social, CNPJ,
+IE, endereço e telefone tirados das próprias notas). Assim o nome não varia de um pedido
+para outro e o app consegue conferir o CNPJ da nota: se você anexar um DANFE de outro
+emitente, ele avisa que a nota é de outro fornecedor. Para cadastrar mais fornecedores,
+a lista fica em `FORNECEDORES_PADRAO`, no começo do bloco de pedidos.
+
+**Base de entrega** também é lista, com as bases do cadastro de oficinas da Vammo
+(`mechanics_r.location`): **SBC, Osasco, Mooca e São Mateus**, mais *Nova base / outro
+destino*, que abre um campo livre — é o caso de comprar ferramental para uma base que
+ainda vai abrir. Fornecedor e base viraram obrigatórios para o pedido sair do rascunho.
 - **Mandar para o fornecedor**: **PDF A4** (documento com logo, CNPJ e assinatura),
   **WhatsApp** (copia o pedido em texto) ou **CSV**.
 - **Duplicar**: o pedido de uma base vira o da próxima com as mesmas ferramentas.
