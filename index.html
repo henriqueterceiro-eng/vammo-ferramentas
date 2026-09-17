@@ -100,6 +100,24 @@ td input,td select{padding:5px 7px;font-size:12.5px}
 .janela .cx{background:var(--painel);border:1px solid var(--linha);border-radius:12px;padding:20px;
             width:min(760px,100%);max-height:88vh;overflow:auto;box-shadow:var(--sombra)}
 .janela h3{margin:0 0 14px;font-size:16px}
+/* ---------- quantidade: escrever ou clicar ---------- */
+.qtd{display:inline-flex;align-items:stretch;border:1px solid var(--linha);border-radius:7px;
+     overflow:hidden;background:#0d1317}
+.qtd button{border:0;background:#161f26;color:var(--txt2);width:28px;padding:0;font-size:16px;
+            line-height:1;border-radius:0;cursor:pointer}
+.qtd button:hover{background:var(--ciano);color:#00232e;border-color:transparent}
+.qtd input{border:0;width:52px;text-align:center;padding:5px 2px;background:transparent;
+           font-variant-numeric:tabular-nums}
+.qtd input:focus{outline:0;background:#101a20}
+/* ---------- escolhido, à espera de adicionar ---------- */
+.selecao{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;background:#101c23;
+         border:1px solid var(--ciano);border-radius:9px;padding:11px 13px;margin-bottom:12px}
+.selecao small{color:var(--txt2);font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+tr.linha-kit td{background:#121d24}
+tr.do-kit td{background:#0f161b}
+tr.do-kit td:first-child{padding-left:14px}
+.trilho{display:inline-block;width:11px;height:8px;margin-right:7px;vertical-align:middle;
+        border-left:2px solid #2f3d47;border-bottom:2px solid #2f3d47}
 /* ---------- pedidos ---------- */
 .chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;border:1px solid}
 .esteira{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
@@ -135,6 +153,7 @@ table.doc-itens th{background:#eef4f7;border:1px solid #ccc;padding:6px;text-ali
                    font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#333}
 table.doc-itens td{border:1px solid #ddd;padding:5px 6px}
 table.doc-itens tfoot td{border:0;padding-top:9px;font-size:13px}
+table.doc-itens tr.doc-kit td{background:#eef4f7}
 .doc .num{text-align:right}
 .doc-obs{margin-top:12px;border:1px solid #ccc;padding:8px 10px;font-size:11.5px}
 .doc-ass{display:flex;gap:40px;justify-content:space-between;margin-top:30px;text-align:center;font-size:10px;color:#444}
@@ -1249,7 +1268,7 @@ function editarKit(kid){
     '<div class="linha" style="margin-bottom:10px">' +
       '<div class="cresce"><label class="campo">Incluir ferramenta no kit</label>' +
         '<input id="busca-kit" placeholder="digite parte do nome e escolha abaixo" oninput="pintaBuscaKit(\''+k.id+'\')"></div>' +
-      '<div style="flex:0 0 90px"><label class="campo">Qtd</label><input id="qtd-kit" value="1"></div>' +
+
     '</div>' +
     '<div id="sug-kit"></div>' +
     (linhas.length ?
@@ -1257,8 +1276,9 @@ function editarKit(kid){
       '<th class="num">Vlr unit.</th><th class="num">Total</th><th></th></tr></thead><tbody>' +
     linhas.map((l,n) =>
       '<tr><td>' + (l.f ? esc(l.f.nome) : '<span class="tag sem">saiu do catálogo</span>') + '</td>' +
-      '<td class="num" style="width:80px"><input style="text-align:right" value="'+fmtN(l.qtd,0)+
-        '" onchange="edQtdKit(\''+k.id+'\','+n+',this.value)"></td>' +
+      '<td class="num" style="width:130px">' +
+        htmlQtd(l.qtd, 'passoKit(\''+k.id+'\','+n+',-1)', 'passoKit(\''+k.id+'\','+n+',1)',
+                'edQtdKit(\''+k.id+'\','+n+',this.value)') + '</td>' +
       '<td class="num">'+fmtR$(l.pu)+'</td><td class="num"><b>'+fmtR$(l.total)+'</b></td>' +
       '<td class="num"><button class="mini perigo" onclick="tiraItemKit(\''+k.id+'\','+n+')">✕</button></td></tr>').join('') +
     '<tr><td colspan="3" style="text-align:right;font-weight:600">CUSTO DO KIT</td>' +
@@ -1273,6 +1293,10 @@ function editarKit(kid){
 function edKit(kid, chave, val){
   const k = kit(kid); if(!k) return;
   k[chave] = val; salva(); pintaKits();
+}
+function passoKit(kid, n, d){
+  const k = kit(kid); if(!k || !k.itens[n]) return;
+  edQtdKit(kid, n, String(Math.max(1, (k.itens[n].qtd||0) + d)));
 }
 function edQtdKit(kid, n, val){
   const k = kit(kid); if(!k || !k.itens[n]) return;
@@ -1301,33 +1325,34 @@ function pintaBuscaKit(kid){
 }
 function addItemKit(kid, catId){
   const k = kit(kid); if(!k) return;
-  const q = parseFloat(((document.getElementById('qtd-kit')||{}).value||'1').replace(',','.'));
-  const qtd = (isNaN(q)||q<=0) ? 1 : q;
+  const qtd = 1;   // entra com 1; ajusta na linha
   const ja = (k.itens||[]).find(i=>i.catId===catId);
   if(ja) ja.qtd += qtd; else (k.itens = k.itens||[]).push({catId, qtd});
   salva(); editarKit(kid); pintaKits();
 }
 
 /* usar o kit dentro de um pedido: entra item a item, com o preço de hoje */
-function addKitAoPedido(kid){
+function addKitAoPedido(kid, quantidade){
   const p = pedidoAtual(), k = kit(kid);
   if(!p || !k) return;
-  const mult = parseFloat(((document.getElementById('qtd-item')||{}).value||'1').replace(',','.'));
-  const vezes = (isNaN(mult)||mult<=0) ? 1 : mult;
+  const vezes = quantidade > 0 ? quantidade : 1;
+  p.kitVezes = p.kitVezes || {};
+  p.kitVezes[k.id] = (p.kitVezes[k.id] || 0) + vezes;
+  p.kitsAbertos = p.kitsAbertos || {};
   let novos = 0, somados = 0;
   for(const l of kitLinhas(k)){
     if(!l.f) continue;
     const qtd = (l.qtd||0) * vezes;
-    const ja = p.itens.find(i => i.catId === l.catId);
-    if(ja){ ja.qtd += qtd; somados++; }
-    else { p.itens.push({catId: l.catId, nome: l.f.nome, un: l.f.un||'UN',
-                         qtd, preco: l.pu, deKit: k.nome}); novos++; }
+    const ja = p.itens.find(i => i.catId === l.catId && i.kitId === k.id);
+    if(ja){ ja.qtd += qtd; ja.kitBase = l.qtd || 1; somados++; }
+    else { p.itens.push({catId: l.catId, nome: l.f.nome, un: l.f.un||'UN', qtd, preco: l.pu,
+                         kitId: k.id, deKit: k.nome, kitBase: l.qtd || 1}); novos++; }
   }
   if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens, p.nf);
   salva(); pintaPedidos();
   const b = document.getElementById('busca-item'); if(b){ b.value=''; b.focus(); }
-  aviso(k.nome + (vezes>1 ? ' ×'+vezes : '') + ': ' + novos + ' ferramenta(s) no pedido' +
-        (somados ? ' e ' + somados + ' somada(s) ao que já estava' : '') + '.');
+  aviso(k.nome + (vezes>1 ? ' x'+fmtN(vezes,0) : '') + ' no pedido — ' +
+        (novos+somados) + ' ferramentas, recolhidas em uma linha só.');
 }
 
 /* ==================================================================
@@ -1677,15 +1702,38 @@ async function tiraAnexo(pid, qual){
 }
 
 /* ---------- o pedido saindo do app ---------- */
+/* Na tela o kit é uma linha só; no papel e no CSV vai tudo aberto, com o kit
+   identificando de onde cada ferramenta veio. */
+function itensParaExportar(p){
+  const {grupos, avulsos} = gruposDoPedido(p);
+  const saida = [];
+  for(const g of grupos){
+    const vezes = (p.kitVezes||{})[g.kitId] || 1;
+    saida.push({tipo:'kit', nome: g.nome, vezes, total: somaLinhas(g.itens), qtdItens: g.itens.length});
+    for(const {i} of g.itens) saida.push({tipo:'item', i, kit: g.nome});
+  }
+  for(const {i} of avulsos) saida.push({tipo:'item', i, kit: ''});
+  return saida;
+}
+
 function textoWhatsApp(p){
   const L = [];
   L.push('*PEDIDO ' + p.numero + ' — ' + VAMMO.razao + '*');
   if(p.fornecedor) L.push('Fornecedor: ' + p.fornecedor);
   if(nomeBase(p)) L.push('Entrega: ' + nomeBase(p));
   L.push('');
-  p.itens.forEach((i,n) => L.push(
-    (n+1) + ') ' + i.nome + ' — ' + fmtN(i.qtd,0) + ' ' + (i.un||'UN') +
-    (i.preco ? ' x ' + fmtR$(i.preco) + ' = ' + fmtR$(i.qtd*i.preco) : '')));
+  let n = 0;
+  for(const l of itensParaExportar(p)){
+    if(l.tipo === 'kit'){
+      L.push('');
+      L.push('*🧰 ' + l.nome + (l.vezes>1 ? ' x'+fmtN(l.vezes,0) : '') +
+             ' — ' + l.qtdItens + ' ferramentas — ' + fmtR$(l.total) + '*');
+      continue;
+    }
+    const i = l.i;
+    L.push(++n + ') ' + i.nome + ' — ' + fmtN(i.qtd,0) + ' ' + (i.un||'UN') +
+      (i.preco ? ' x ' + fmtR$(i.preco) + ' = ' + fmtR$(i.qtd*i.preco) : ''));
+  }
   L.push('');
   L.push('*Total: ' + fmtR$(totalPedido(p)) + '*');
   if(p.dtEntrega) L.push('Entrega combinada: ' + brDeISO(p.dtEntrega));
@@ -1713,11 +1761,14 @@ function caiNoTextarea(txt, feito){
 }
 function csvPedido(pid){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
-  const linhas = [['Pedido','Fornecedor','Entrega','Ferramenta','Unidade','Quantidade','Valor unitario','Total']];
-  for(const i of p.itens)
-    linhas.push([p.numero, p.fornecedor, nomeBase(p), i.nome, i.un||'UN', i.qtd,
+  const linhas = [['Pedido','Fornecedor','Entrega','Kit','Ferramenta','Unidade','Quantidade','Valor unitario','Total']];
+  for(const l of itensParaExportar(p)){
+    if(l.tipo === 'kit') continue;           // o kit vira a coluna "Kit" de cada ferramenta
+    const i = l.i;
+    linhas.push([p.numero, p.fornecedor, nomeBase(p), l.kit, i.nome, i.un||'UN', i.qtd,
                  (i.preco||0).toFixed(2).replace('.',','), ((i.qtd||0)*(i.preco||0)).toFixed(2).replace('.',',')]);
-  linhas.push(['','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
+  }
+  linhas.push(['','','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
   const csv = '﻿' + linhas.map(l => l.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   baixar(new Blob([csv], {type:'text/csv;charset=utf-8'}), p.numero.toLowerCase() + '.csv');
 }
@@ -1729,6 +1780,16 @@ function pintaPedidos(){
   const p = pedidoAtual();
   alvo.innerHTML = p ? htmlPedido(p) : htmlListaPedidos();
   if(p) pintaBuscaItem();
+}
+
+/* campo de quantidade: dá para escrever ou clicar nos botões */
+function htmlQtd(valor, acaoMenos, acaoMais, acaoEscreve, idCampo, aoTeclar){
+  return '<span class="qtd">' +
+    '<button type="button" title="menos" onclick="' + acaoMenos + '">−</button>' +
+    '<input' + (idCampo ? ' id="'+idCampo+'"' : '') + ' value="' + fmtN(valor,0) + '"' +
+      ' onchange="' + acaoEscreve + '"' + (aoTeclar ? ' onkeydown="'+aoTeclar+'"' : '') + '>' +
+    '<button type="button" title="mais" onclick="' + acaoMais + '">+</button>' +
+  '</span>';
 }
 
 function chipStatus(st){
@@ -1797,8 +1858,8 @@ function htmlListaPedidos(){
     '</div>';
 }
 
-function abrePedido(pid){ BD.cfg.pedidoAberto = pid; salva(); pintaPedidos(); window.scrollTo(0,0); }
-function fechaPedido(){ BD.cfg.pedidoAberto = null; salva(); pintaPedidos(); }
+function abrePedido(pid){ SEL = null; BD.cfg.pedidoAberto = pid; salva(); pintaPedidos(); window.scrollTo(0,0); }
+function fechaPedido(){ SEL = null; BD.cfg.pedidoAberto = null; salva(); pintaPedidos(); }
 
 function htmlPedido(p){
   const total = totalPedido(p);
@@ -1865,29 +1926,13 @@ function htmlPedido(p){
     (p.congelado ? '<p class="ajuda">Pedido já enviado: o preço aqui é o combinado, não acompanha mais o catálogo.</p>'
                  : '<p class="ajuda">Preço puxado do catálogo — dá para ajustar para o valor negociado.</p>') +
     '<div class="linha naoimprime" style="margin-bottom:12px">' +
-      '<div class="cresce"><label class="campo">Adicionar ferramenta</label>' +
-        '<input id="busca-item" placeholder="digite parte do nome e escolha abaixo" oninput="pintaBuscaItem()"></div>' +
-      '<div style="flex:0 0 100px"><label class="campo">Qtd</label>' +
-        '<input id="qtd-item" value="1" onkeydown="if(event.key===\'Enter\')addPrimeiroItem()"></div>' +
+      '<div class="cresce"><label class="campo">Adicionar ferramenta ou kit</label>' +
+        '<input id="busca-item" placeholder="digite parte do nome e escolha abaixo — a quantidade você ajusta na lista" ' +
+        'oninput="pintaBuscaItem()" onkeydown="if(event.key===\'Enter\')addPrimeiroItem()"></div>' +
     '</div>' +
     '<div id="sug-item" class="naoimprime"></div>' +
-    (p.itens.length ?
-    '<div class="tabwrap"><table><thead><tr><th style="min-width:240px">Ferramenta</th><th>Un</th>' +
-      '<th class="num">Qtd</th><th class="num">Vlr unit.</th><th class="num">Total</th><th class="naoimprime"></th>' +
-    '</tr></thead><tbody>' +
-    p.itens.map((i,n) =>
-      '<tr><td><b>'+esc(i.nome)+'</b>' +
-        (i.deKit ? '<div style="font-size:10.5px;color:var(--txt2)">do kit: '+esc(i.deKit)+'</div>' : '') +
-      '</td><td>'+esc(i.un||'UN')+'</td>' +
-      '<td class="num" style="width:90px"><input style="text-align:right" value="'+fmtN(i.qtd,0)+'" onchange="edItem(\''+p.id+'\','+n+',\'qtd\',this.value)"></td>' +
-      '<td class="num" style="width:110px"><input style="text-align:right" value="'+fmtN(i.preco,2)+'" onchange="edItem(\''+p.id+'\','+n+',\'preco\',this.value)"></td>' +
-      '<td class="num"><b>'+fmtR$((i.qtd||0)*(i.preco||0))+'</b></td>' +
-      '<td class="num naoimprime"><button class="mini perigo" onclick="tiraItem2(\''+p.id+'\','+n+')">✕</button></td></tr>').join('') +
-    '<tr><td colspan="4" style="text-align:right;font-weight:600">TOTAL DO PEDIDO</td>' +
-      '<td class="num" style="font-size:16px;font-weight:700;color:var(--ciano)">'+fmtR$(total)+'</td>' +
-      '<td class="naoimprime"></td></tr>' +
-    '</tbody></table></div>'
-    : '<div class="vazio">Sem ferramentas. Busque no campo acima para adicionar.</div>') +
+    htmlSelecao() +
+    htmlItensPedido(p) +
   '</div>' +
 
   '<div class="card">' +
@@ -1920,6 +1965,11 @@ function edPedido(pid, chave, val){
   salva();
   if(['fornecedorId','baseId','base','dtEntrega'].includes(chave)) pintaPedidos();
 }
+function passoItem(pid, n, d){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p || !p.itens[n]) return;
+  const novo = Math.max(1, (p.itens[n].qtd||0) + d);
+  edItem(pid, n, 'qtd', String(novo));
+}
 function edItem(pid, n, chave, val){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p || !p.itens[n]) return;
   const v = numBR(val) != null ? numBR(val) : parseFloat(String(val).replace(',','.'));
@@ -1933,6 +1983,153 @@ function tiraItem2(pid, n){
   if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens, p.nf);
   salva(); pintaPedidos();
 }
+/* ---------- escolher ferramenta/kit, ajustar a quantidade e só então adicionar ---------- */
+let SEL = null;   // {tipo:'item'|'kit', id, qtd}
+
+function selecionaParaAdd(tipo, id){
+  SEL = {tipo, id, qtd: 1};
+  pintaPedidos();
+  const c = document.getElementById('qtd-sel');
+  if(c){ c.focus(); c.select(); }
+}
+function limpaSel(){ SEL = null; pintaPedidos(); }
+function passoSel(d){
+  if(!SEL) return;
+  SEL.qtd = Math.max(1, (SEL.qtd||1) + d);
+  pintaPedidos();
+}
+function edSel(v){
+  if(!SEL) return;
+  const n = numBR(v) != null ? numBR(v) : parseFloat(String(v).replace(',','.'));
+  if(!isNaN(n) && n > 0) SEL.qtd = n;
+  pintaPedidos();
+}
+function confirmaAdd(){
+  if(!SEL) return;
+  if(SEL.tipo === 'kit') addKitAoPedido(SEL.id, SEL.qtd);
+  else addItemPedido(SEL.id, SEL.qtd);
+  SEL = null;
+  const b = document.getElementById('busca-item');
+  if(b){ b.value = ''; b.focus(); }
+  pintaPedidos();
+}
+function htmlSelecao(){
+  if(!SEL) return '';
+  const nome = SEL.tipo === 'kit'
+    ? '🧰 ' + ((kit(SEL.id)||{}).nome || '')
+    : ((BD.catalogo.find(c=>c.id===SEL.id)||{}).nome || '');
+  const unit = SEL.tipo === 'kit' ? kitTotal(kit(SEL.id)) : precoUsado(BD.catalogo.find(c=>c.id===SEL.id));
+  return '<div class="selecao naoimprime">' +
+    '<div class="cresce"><small>escolhido</small><br><b>' + esc(nome) + '</b>' +
+      (unit ? ' <span style="color:var(--ciano)">' + fmtR$(unit) + (SEL.tipo==='kit'?' o kit':'') + '</span>' : '') +
+    '</div>' +
+    '<div><small>quantidade</small><br>' +
+      htmlQtd(SEL.qtd, 'passoSel(-1)', 'passoSel(1)', 'edSel(this.value)', 'qtd-sel',
+              'if(event.key===\'Enter\')confirmaAdd()') + '</div>' +
+    '<button class="primario" onclick="confirmaAdd()">+ Adicionar ao pedido</button>' +
+    '<button class="mini" onclick="limpaSel()">cancelar</button>' +
+  '</div>';
+}
+
+/* ---------- lista do pedido: kit vira uma linha só, que abre quando você quer ---------- */
+function gruposDoPedido(p){
+  const grupos = new Map(), avulsos = [];
+  (p.itens||[]).forEach((i, n) => {
+    if(i.kitId){
+      if(!grupos.has(i.kitId)) grupos.set(i.kitId, {kitId:i.kitId, nome:i.deKit, itens:[]});
+      grupos.get(i.kitId).itens.push({i, n});
+    } else avulsos.push({i, n});
+  });
+  return {grupos: [...grupos.values()], avulsos};
+}
+const somaLinhas = arr => arr.reduce((s,x)=> s + (x.i.qtd||0)*(x.i.preco||0), 0);
+
+function linhaItem(p, i, n, dentroDeKit){
+  return '<tr'+(dentroDeKit?' class="do-kit"':'')+'>' +
+    '<td>' + (dentroDeKit ? '<span class="trilho"></span>' : '') + '<b>'+esc(i.nome)+'</b></td>' +
+    '<td>'+esc(i.un||'UN')+'</td>' +
+    '<td class="num" style="width:130px">' +
+      htmlQtd(i.qtd, 'passoItem(\''+p.id+'\','+n+',-1)', 'passoItem(\''+p.id+'\','+n+',1)',
+              'edItem(\''+p.id+'\','+n+',\'qtd\',this.value)') + '</td>' +
+    '<td class="num" style="width:110px"><input style="text-align:right" value="'+fmtN(i.preco,2)+
+      '" onchange="edItem(\''+p.id+'\','+n+',\'preco\',this.value)"></td>' +
+    '<td class="num"><b>'+fmtR$((i.qtd||0)*(i.preco||0))+'</b></td>' +
+    '<td class="num naoimprime"><button class="mini perigo" onclick="tiraItem2(\''+p.id+'\','+n+')">✕</button></td>' +
+  '</tr>';
+}
+
+function htmlItensPedido(p){
+  const {grupos, avulsos} = gruposDoPedido(p);
+  if(!grupos.length && !avulsos.length)
+    return '<div class="vazio">Sem ferramentas. Busque no campo acima para adicionar.</div>';
+  p.kitsAbertos = p.kitsAbertos || {};
+  let html = '<div class="tabwrap"><table><thead><tr><th style="min-width:240px">Ferramenta</th><th>Un</th>' +
+    '<th class="num">Qtd</th><th class="num">Vlr unit.</th><th class="num">Total</th><th class="naoimprime"></th>' +
+    '</tr></thead><tbody>';
+  for(const g of grupos){
+    const aberto = !!p.kitsAbertos[g.kitId];
+    const vezes = (p.kitVezes||{})[g.kitId] || 1;
+    html += '<tr class="linha-kit">' +
+      '<td><button class="mini naoimprime" style="margin-right:6px" onclick="abreKitNoPedido(\''+p.id+'\',\''+g.kitId+'\')">' +
+        (aberto ? '▾' : '▸') + '</button>' +
+        '<b>🧰 ' + esc(g.nome||'Kit') + '</b>' +
+        '<span style="color:var(--txt2);font-size:11.5px"> · ' + g.itens.length + ' ferramentas</span></td>' +
+      '<td>KIT</td>' +
+      '<td class="num" style="width:130px">' +
+        htmlQtd(vezes, 'passoKitPedido(\''+p.id+'\',\''+g.kitId+'\',-1)',
+                       'passoKitPedido(\''+p.id+'\',\''+g.kitId+'\',1)',
+                       'edKitPedido(\''+p.id+'\',\''+g.kitId+'\',this.value)') + '</td>' +
+      '<td class="num">'+fmtR$(somaLinhas(g.itens)/(vezes||1))+'</td>' +
+      '<td class="num"><b>'+fmtR$(somaLinhas(g.itens))+'</b></td>' +
+      '<td class="num naoimprime"><button class="mini perigo" onclick="tiraKitDoPedido(\''+p.id+'\',\''+g.kitId+'\')">✕</button></td>' +
+    '</tr>';
+    if(aberto) for(const {i,n} of g.itens) html += linhaItem(p, i, n, true);
+  }
+  for(const {i,n} of avulsos) html += linhaItem(p, i, n, false);
+  html += '<tr><td colspan="4" style="text-align:right;font-weight:600">TOTAL DO PEDIDO</td>' +
+    '<td class="num" style="font-size:16px;font-weight:700;color:var(--ciano)">'+fmtR$(totalPedido(p))+'</td>' +
+    '<td class="naoimprime"></td></tr></tbody></table></div>';
+  return html;
+}
+
+function abreKitNoPedido(pid, kitId){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  p.kitsAbertos = p.kitsAbertos || {};
+  p.kitsAbertos[kitId] = !p.kitsAbertos[kitId];
+  salva(); pintaPedidos();
+}
+function tiraKitDoPedido(pid, kitId){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  const nome = (p.itens.find(i=>i.kitId===kitId)||{}).deKit || 'kit';
+  if(!confirm('Tirar "'+nome+'" do pedido, com todas as ferramentas dele?')) return;
+  p.itens = p.itens.filter(i => i.kitId !== kitId);
+  if(p.kitVezes) delete p.kitVezes[kitId];
+  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens, p.nf);
+  salva(); pintaPedidos();
+}
+/* mudar a quantidade do kit recalcula as ferramentas dele, mantendo o que você ajustou
+   à mão (a base de cada item é a quantidade dele por kit) */
+function aplicaVezesKit(p, kitId, vezes){
+  p.kitVezes = p.kitVezes || {};
+  p.kitVezes[kitId] = vezes;
+  for(const i of p.itens){
+    if(i.kitId !== kitId) continue;
+    i.qtd = (i.kitBase || 1) * vezes;
+  }
+  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens, p.nf);
+  salva(); pintaPedidos();
+}
+function passoKitPedido(pid, kitId, d){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  const atual = (p.kitVezes||{})[kitId] || 1;
+  aplicaVezesKit(p, kitId, Math.max(1, atual + d));
+}
+function edKitPedido(pid, kitId, val){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  const n = numBR(val) != null ? numBR(val) : parseFloat(String(val).replace(',','.'));
+  aplicaVezesKit(p, kitId, (isNaN(n)||n<1) ? 1 : n);
+}
+
 function pintaBuscaItem(){
   const cx = document.getElementById('sug-item'); if(!cx) return;
   const q = chaveNome((document.getElementById('busca-item')||{}).value || '');
@@ -1946,22 +2143,21 @@ function pintaBuscaItem(){
   // kits primeiro: escolher o kit traz todas as ferramentas dele
   const kits = (BD.kits||[]).filter(k => combina(chaveNome(k.nome + ' ' + (k.descricao||'')), q));
   const htmlKits = kits.map(k =>
-    '<button class="mini" style="border-color:var(--ciano)" onclick="addKitAoPedido(\''+k.id+'\')">' +
+    '<button class="mini" style="border-color:var(--ciano)" onclick="selecionaParaAdd(\'kit\',\''+k.id+'\')">' +
     '🧰 ' + esc(k.nome) + ' <span style="color:var(--txt2)">(' + (k.itens||[]).length + ' itens)</span> ' +
     '<span style="color:var(--ciano)">'+fmtR$(kitTotal(k))+'</span></button>').join('');
   cx.innerHTML = (kits.length || achados.length)
     ? '<div class="linha" style="margin-bottom:12px">' + htmlKits + achados.map(f =>
-        '<button class="mini" onclick="addItemPedido(\''+f.id+'\')">'+(tem.has(f.id)?'✓ ':'+ ')+
+        '<button class="mini" onclick="selecionaParaAdd(\'item\',\''+f.id+'\')">'+(tem.has(f.id)?'✓ ':'+ ')+
         esc(f.nome)+' <span style="color:var(--ciano)">'+fmtR$(precoUsado(f))+'</span></button>').join('') + '</div>'
     : '<div class="aviso at" style="padding:7px 11px">Nada no catálogo com esse nome. ' +
       'Importe a nota dessa ferramenta ou cadastre na aba Catálogo.</div>';
 }
-function addItemPedido(catId){
+function addItemPedido(catId, quantidade){
   const p = pedidoAtual(), f = BD.catalogo.find(c=>c.id===catId);
   if(!p || !f) return;
-  const q = parseFloat(((document.getElementById('qtd-item')||{}).value||'1').replace(',','.'));
-  const qtd = (isNaN(q)||q<=0) ? 1 : q;
-  const ja = p.itens.find(i=>i.catId===catId);
+  const qtd = quantidade > 0 ? quantidade : 1;
+  const ja = p.itens.find(i=>i.catId===catId && !i.kitId);
   if(ja) ja.qtd += qtd;
   else p.itens.push({catId, nome: f.nome, un: f.un||'UN', qtd, preco: precoUsado(f) || 0});
   if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens, p.nf);
@@ -2107,9 +2303,20 @@ function imprimePedido(pid){
       '</tr></table>' +
       '<table class="doc-itens"><thead><tr><th>#</th><th>Ferramenta</th><th>Un</th>' +
         '<th class="num">Qtd</th><th class="num">Vlr unit.</th><th class="num">Total</th></tr></thead><tbody>' +
-      p.itens.map((i,n)=>'<tr><td>'+(n+1)+'</td><td>'+esc(i.nome)+'</td><td>'+esc(i.un||'UN')+'</td>' +
-        '<td class="num">'+fmtN(i.qtd,0)+'</td><td class="num">'+fmtR$(i.preco)+'</td>' +
-        '<td class="num">'+fmtR$((i.qtd||0)*(i.preco||0))+'</td></tr>').join('') +
+      (function(){
+        let n = 0;
+        return itensParaExportar(p).map(l => {
+          if(l.tipo === 'kit')
+            return '<tr class="doc-kit"><td></td><td colspan="4"><b>KIT ' + esc(l.nome) +
+                   (l.vezes>1 ? ' × ' + fmtN(l.vezes,0) : '') + '</b> — ' + l.qtdItens +
+                   ' ferramentas</td><td class="num"><b>' + fmtR$(l.total) + '</b></td></tr>';
+          const i = l.i;
+          return '<tr><td>'+(++n)+'</td><td>'+(l.kit?'&nbsp;&nbsp;':'')+esc(i.nome)+'</td>' +
+            '<td>'+esc(i.un||'UN')+'</td><td class="num">'+fmtN(i.qtd,0)+'</td>' +
+            '<td class="num">'+fmtR$(i.preco)+'</td>' +
+            '<td class="num">'+fmtR$((i.qtd||0)*(i.preco||0))+'</td></tr>';
+        }).join('');
+      })() +
       '</tbody><tfoot><tr><td colspan="5" class="num">TOTAL DO PEDIDO</td>' +
         '<td class="num"><b>'+fmtR$(totalPedido(p))+'</b></td></tr></tfoot></table>' +
       (p.obs ? '<div class="doc-obs"><small>OBSERVAÇÕES</small><br>'+esc(p.obs)+'</div>' : '') +
@@ -2216,7 +2423,7 @@ document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
 });
 
-const APP_VERSAO = 'v9 · 17/09/2026';
+const APP_VERSAO = 'v11 · 17/09/2026';
 carrega();
 semeiaSePrecisar();
 (function mostraVersao(){

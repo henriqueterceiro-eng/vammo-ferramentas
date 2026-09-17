@@ -25,8 +25,16 @@ Abra o `index.html` no navegador (duplo clique já funciona) ou pela URL do GitH
   *Destino* você decide se a linha vira ferramenta nova, se junta a uma que já existe
   (o app sugere quando reconhece) ou se é pulada (frete, material que não é ferramenta).
 - **Abrir um pedido**: aba *Pedidos* → **+ Novo pedido** → escolha o fornecedor e a base
-  (os dois são listas, não texto livre), busque as ferramentas e ajuste quantidade e preço.
-  O total recalcula na hora.
+  (os dois são listas, não texto livre).
+- **Adicionar ferramenta**: digite o nome e **clique no resultado** — ele fica *escolhido*,
+  sem entrar no pedido ainda. Aí você ajusta a quantidade (escrevendo ou nos botões − / +)
+  e clica em **Adicionar ao pedido**. Depois de adicionado, quantidade e preço continuam
+  editáveis na linha, e o ✕ remove.
+- **Kit no pedido**: entra **recolhido em uma linha só** (🧰 nome · N ferramentas), para não
+  poluir a lista. O ▸ abre e mostra cada ferramenta; a quantidade na linha do kit é o
+  **número de kits** e multiplica tudo que está dentro. O ✕ tira o kit inteiro.
+  Na **exportação sai tudo aberto** — PDF, WhatsApp e CSV listam ferramenta por ferramenta,
+  com o kit identificado.
 
 ### Fornecedores e bases
 
