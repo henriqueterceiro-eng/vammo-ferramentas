@@ -1200,10 +1200,20 @@ function pintaKits(){
           '<button class="mini" onclick="duplicaKit(\''+k.id+'\')">duplicar</button>' +
         '</td></tr>';
     }).join('') + '</tbody></table></div>'
-    : '<div class="vazio">Nenhum kit ainda.</div>') +
+    : '<div class="vazio">Nenhum kit ainda.' +
+      (leSemente() && (leSemente().kits||[]).length
+        ? ' <button class="mini" onclick="carregaKitsDePartida()">carregar o kit do carrinho</button>' : '') +
+      '</div>') +
   '</div>';
 }
 
+function carregaKitsDePartida(){
+  const sem = leSemente();
+  if(!sem || !(sem.kits||[]).length){ aviso('Este arquivo não traz kit de partida.'); return; }
+  BD.kits = JSON.parse(JSON.stringify(sem.kits));
+  salva(); pintaTudo();
+  aviso('Kit carregado: ' + BD.kits[0].nome + ' (' + BD.kits[0].itens.length + ' itens).');
+}
 function novoKit(){
   garanteKits();
   const nome = prompt('Nome do kit:', 'Novo kit');
@@ -2172,11 +2182,16 @@ function aplicaSemente(forcado){
   if(forcado) aviso(BD.catalogo.length + ' ferramentas carregadas.');
 }
 function semeiaSePrecisar(){
-  // basta o catálogo estar vazio: navegador que já tinha qualquer coisa salva do app
-  // (uma visita antiga, um pedido de teste) também recebe o catálogo de partida
-  if(BD.catalogo.length) return;
   const sem = leSemente();
   if(!sem) return;
+  // os kits entram mesmo em quem JÁ tem catálogo — senão quem usa o app desde antes
+  // nunca recebe kit nenhum (foi o que aconteceu)
+  const tinhaKit = (BD.kits||[]).length;
+  aplicaSementeKits(sem);
+  if(BD.catalogo.length){
+    if(!tinhaKit && (BD.kits||[]).length) salva();
+    return;
+  }
   BD.catalogo = JSON.parse(JSON.stringify(sem.catalogo));
   // notas só entram se não houver nenhuma, para não apagar o que a pessoa importou
   if(!BD.notas.length) BD.notas = JSON.parse(JSON.stringify(sem.notas));
@@ -2201,7 +2216,7 @@ document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
 });
 
-const APP_VERSAO = 'v8 · 17/09/2026';
+const APP_VERSAO = 'v9 · 17/09/2026';
 carrega();
 semeiaSePrecisar();
 (function mostraVersao(){
