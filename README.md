@@ -9,8 +9,9 @@ Dois lugares, um arquivo só (`index.html`):
    de entrar no catálogo.
 2. **Catálogo** — tudo que a Vammo já comprou, com último preço, preço médio, menor preço
    e o histórico de cada compra (data, NF, fornecedor).
-3. **Compra por base** — você monta a lista de ferramentas que a base precisa e o custo
-   sai sozinho, com o preço que a Vammo já pagou.
+3. **Pedidos** — você monta o pedido da base, o custo sai sozinho com o preço que a Vammo
+   já pagou, e o pedido segue até o pagamento: gera o documento para o fornecedor, guarda
+   a NF e o boleto e mostra em que etapa cada pedido está.
 
 ## Como usar
 
@@ -22,17 +23,39 @@ Abra o `index.html` no navegador (duplo clique já funciona) ou pela URL do GitH
 - **Conferir**: dá para corrigir nome, unidade, quantidade e valor antes de gravar. Em
   *Destino* você decide se a linha vira ferramenta nova, se junta a uma que já existe
   (o app sugere quando reconhece) ou se é pulada (frete, material que não é ferramenta).
-- **Montar a lista da base**: aba *Compra por base* → **+ Nova lista** → digite parte do
-  nome da ferramenta, escolha, ajuste a quantidade. O total recalcula na hora.
-- **Duplicar**: montou o kit de uma base? **Duplicar** cria a lista da próxima base com
-  as mesmas ferramentas.
-- **Preço usado no cálculo**: último preço pago (padrão), preço médio ou menor preço já pago.
-- **Exportar**: CSV ou imprimir/PDF (a impressão já sai limpa, sem menu e sem botões).
+- **Abrir um pedido**: aba *Pedidos* → **+ Novo pedido** → preencha fornecedor e base,
+  busque as ferramentas e ajuste quantidade e preço. O total recalcula na hora.
+- **Mandar para o fornecedor**: **PDF A4** (documento com logo, CNPJ e assinatura),
+  **WhatsApp** (copia o pedido em texto) ou **CSV**.
+- **Duplicar**: o pedido de uma base vira o da próxima com as mesmas ferramentas.
+- **Preço usado**: último preço pago (padrão), médio ou menor — ajustável no Catálogo.
+  Ao sair do rascunho o preço **congela**: vira o valor negociado e não segue mais o catálogo.
+
+## A esteira do pedido
+
+`Rascunho → Solicitado ao fornecedor → Confirmado → Recebido → NF lançada → Boleto recebido
+→ Ag. subir pagamento → Ag. pagamento Vammo → Pago`
+
+Clique na etapa para mover o pedido; cada uma guarda a data em que entrou, então dá para ver
+onde ele parou. A lista mostra quanto está em aberto, quanto está aguardando pagamento e
+quais pedidos passaram da data de entrega combinada.
+
+Duas etapas exigem o documento: **NF lançada** só com o DANFE anexado, **Boleto recebido** só
+com o boleto anexado.
+
+### NF e boleto
+
+- **NF**: o app lê o PDF e **compara com o pedido** — item que não veio, quantidade diferente,
+  preço acima do combinado. E o botão *lançar no catálogo* manda a nota para a tela de
+  conferência, alimentando o histórico de preços.
+- **Boleto**: o app lê valor e vencimento da linha digitável, conferindo os dígitos
+  verificadores (sem isso a leitura pega dígitos vizinhos e erra a casa decimal).
+- Os PDFs ficam guardados no navegador (IndexedDB) e podem ser abertos a qualquer momento.
 
 ## Catálogo já pronto (`catalogo_ant.json`)
 
-As 6 notas da ANT Ferramentas já estão cadastradas: **49 ferramentas, 55 compras,
-R$ 40.462,93** em notas de 28/05 a 03/09/2026. Para carregar: **⬆ Restaurar** → escolha
+As 10 notas da ANT Ferramentas já estão cadastradas: **60 ferramentas, 136 compras,
+R$ 93.117,69** em notas de 28/05 a 03/09/2026. Para carregar: **⬆ Restaurar** → escolha
 `catalogo_ant.json`.
 
 O nome de cada ferramenta foi enxugado (sai o código interno do fornecedor, fica

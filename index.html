@@ -96,6 +96,45 @@ td input,td select{padding:5px 7px;font-size:12.5px}
 .janela .cx{background:var(--painel);border:1px solid var(--linha);border-radius:12px;padding:20px;
             width:min(760px,100%);max-height:88vh;overflow:auto;box-shadow:var(--sombra)}
 .janela h3{margin:0 0 14px;font-size:16px}
+/* ---------- pedidos ---------- */
+.chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:600;border:1px solid}
+.esteira{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.passo{--c:#3b4a56;display:flex;align-items:center;gap:7px;background:#0f161b;border:1px solid var(--linha);
+       border-radius:8px;padding:7px 11px;font-size:12px;color:var(--txt2);cursor:pointer;text-align:left}
+.passo:hover{border-color:var(--ciano);color:var(--txt)}
+.passo .bolinha{width:9px;height:9px;border-radius:50%;background:#2c3a45;flex:0 0 auto}
+.passo.feito{color:var(--txt);border-color:var(--c);background:#111b21}
+.passo.feito .bolinha{background:var(--c)}
+.passo.atual{box-shadow:inset 0 0 0 1px var(--c);font-weight:600}
+.passo small{display:block;color:var(--txt2);font-size:10px;font-weight:400}
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+.grade2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.anexo{background:#0f161b;border:1px solid var(--linha);border-radius:9px;padding:13px}
+.anexo.vazio2{border-style:dashed}
+.anexo b{font-size:13.5px}
+.anexo p{margin:3px 0;font-size:12.5px;color:var(--txt2)}
+.anexo p.dica{font-size:11.5px;margin-top:8px}
+td.num.dif{color:var(--alerta);font-weight:600}
+/* ---------- documento do pedido (papel) ---------- */
+#doc-impressao{display:none}
+.doc{color:#111;background:#fff;font-size:12px;padding:6mm}
+.doc-topo{display:flex;align-items:flex-start;gap:14px;border-bottom:2px solid #00B4E5;padding-bottom:10px}
+.doc-topo img{height:24px;filter:invert(1)}  /* a logo oficial é branca: no papel precisa ser escura */
+.doc-emp{font-size:10.5px;line-height:1.45;flex:1}
+.doc-num{text-align:right;font-size:10.5px;white-space:nowrap}
+.doc-num b{font-size:17px;letter-spacing:.5px}
+table.doc-cab{width:100%;margin:12px 0;border-collapse:collapse}
+table.doc-cab td{border:1px solid #ccc;padding:7px 9px;font-size:11.5px;vertical-align:top;width:33.3%}
+table.doc-cab small,.doc-obs small{color:#666;font-size:9px;letter-spacing:.6px}
+table.doc-itens{width:100%;border-collapse:collapse;font-size:11.5px}
+table.doc-itens th{background:#eef4f7;border:1px solid #ccc;padding:6px;text-align:left;
+                   font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#333}
+table.doc-itens td{border:1px solid #ddd;padding:5px 6px}
+table.doc-itens tfoot td{border:0;padding-top:9px;font-size:13px}
+.doc .num{text-align:right}
+.doc-obs{margin-top:12px;border:1px solid #ccc;padding:8px 10px;font-size:11.5px}
+.doc-ass{display:flex;gap:40px;justify-content:space-between;margin-top:30px;text-align:center;font-size:10px;color:#444}
+@page{size:A4;margin:12mm}
 @media(max-width:640px){
   main{padding:12px} .card{padding:13px}
   header{padding:10px 12px;gap:9px}
@@ -107,6 +146,9 @@ td input,td select{padding:5px 7px;font-size:12.5px}
 }
 @media print{
   header,nav,#solta,.naoimprime{display:none!important}
+  /* imprimindo o pedido: só o documento vai para o papel */
+  body.imprimindo-doc > *{display:none!important}
+  body.imprimindo-doc #doc-impressao{display:block!important}
   body{background:#fff;color:#000} .card{border-color:#ccc;background:#fff}
   table{background:#fff} th{background:#eee;color:#000} td{border-color:#ddd}
 }
@@ -127,7 +169,7 @@ td input,td select{padding:5px 7px;font-size:12.5px}
 <nav>
   <button data-tela="notas" class="on">📄 Notas fiscais</button>
   <button data-tela="catalogo">🧰 Catálogo</button>
-  <button data-tela="compra">🛒 Compra por base</button>
+  <button data-tela="pedidos">🛒 Pedidos</button>
 </nav>
 
 <main>
@@ -176,38 +218,25 @@ td input,td select{padding:5px 7px;font-size:12.5px}
         <option value="barato">Menor preço</option>
         <option value="recente">Compra mais recente</option>
       </select>
+      <select id="criterio" style="width:auto" onchange="salvaCriterio()" title="Preço usado ao montar um pedido">
+        <option value="ultimo">Usar último preço pago</option>
+        <option value="medio">Usar preço médio</option>
+        <option value="menor">Usar menor preço</option>
+      </select>
       <button class="mini" onclick="novaFerramenta()">+ Ferramenta manual</button>
     </div>
     <div id="tab-cat"></div>
   </div>
 </section>
 
-<!-- ============================ COMPRA ============================ -->
-<section class="tela" id="tela-compra">
-  <div class="card naoimprime">
-    <h2>Lista de compra por base</h2>
-    <p class="ajuda">Monte a lista de ferramentas que a base precisa: o custo sai sozinho, com o
-      preço que a Vammo já pagou.</p>
-    <div class="linha">
-      <div style="flex:0 0 240px"><label class="campo">Lista</label>
-        <select id="sel-lista" onchange="trocaLista(this.value)"></select></div>
-      <div style="flex:0 0 auto;align-self:flex-end"><button onclick="novaLista()">+ Nova lista</button></div>
-      <div style="flex:0 0 auto;align-self:flex-end"><button class="mini" onclick="duplicarLista()">Duplicar</button></div>
-      <div style="flex:0 0 auto;align-self:flex-end"><button class="mini perigo" onclick="apagarLista()">Apagar</button></div>
-      <div style="flex:0 0 200px;margin-left:auto"><label class="campo">Preço usado no cálculo</label>
-        <select id="criterio" onchange="salvaCfg();pintaCompra()">
-          <option value="ultimo">Último preço pago</option>
-          <option value="medio">Preço médio</option>
-          <option value="menor">Menor preço já pago</option>
-        </select></div>
-    </div>
-  </div>
-
-  <div id="painel-compra"></div>
+<!-- ============================ PEDIDOS ============================ -->
+<section class="tela" id="tela-pedidos">
+  <div id="painel-pedidos"></div>
 </section>
 
 </main>
 
+<div id="doc-impressao"></div>
 <div id="toast"></div>
 <div class="janela" id="janela"><div class="cx" id="janela-cx"></div></div>
 
@@ -508,7 +537,8 @@ async function lePDF(file){
    Use Backup/Restaurar para levar para outro computador.
    ================================================================== */
 const CHAVE_LS = 'vammo_ferramentas_v1';
-let BD = {catalogo:[], notas:[], listas:[], cfg:{criterio:'ultimo', listaAtual:null}};
+let BD = {catalogo:[], notas:[], listas:[], pedidos:[],
+          cfg:{criterio:'ultimo', listaAtual:null, pedidoAberto:null}};
 
 function carrega(){
   try{
@@ -516,9 +546,11 @@ function carrega(){
     if(cru){
       const d = JSON.parse(cru);
       BD = Object.assign(BD, d);
-      BD.cfg = Object.assign({criterio:'ultimo', listaAtual:null}, d.cfg||{});
+      BD.cfg = Object.assign({criterio:'ultimo', listaAtual:null, pedidoAberto:null}, d.cfg||{});
+      if(!Array.isArray(BD.pedidos)) BD.pedidos = [];
     }
   }catch(e){ aviso('Não consegui ler os dados salvos: ' + e.message); }
+  migraParaPedidos();
 }
 function salva(){
   try{ localStorage.setItem(CHAVE_LS, JSON.stringify(BD)); }
@@ -559,7 +591,8 @@ const MARCAS = new Set(('GEDORE RED MAYLE TRAMONTINA MASTER PRO BAHCO SULAMERICA
   'ESAB PDR STOK AIR ROBUST LINE DIN VONDER STARRETT MAKITA DEWALT IRWIN BELZER KINGTONY ' +
   'KING TONY NOLL FORTG WORKER LOTUS ' +
   'ACO CROMO VANADIO NIQUELADO CROMADA CROMADO POLIDO FOSFATIZADO INOX ' +
-  'JG PU SX UN PC CX COM PECAS PECA UNIDADES UNIDADE').split(' '));
+  'JG PU SX UN PC CX COM PECAS PECA UNIDADES UNIDADE ' +
+  'DE DA DO DOS DAS EM PARA POR').split(' '));
 
 function canon(nome){
   const t = semAcento(nome).replace(/[^A-Z0-9,.\/" ]/g,' ');
@@ -574,12 +607,16 @@ function canon(nome){
 /* Medida é identidade da ferramenta: chave de 4mm e de 5mm têm nome quase igual
    (95% de parecença) e NÃO são a mesma coisa. Se as medidas diferem, não junta. */
 function medidas(s){
-  const t = semAcento(s);
+  // "100, 00MM" é quebra da nota no meio do número, e 6,0mm é o mesmo que 6mm
+  const t = semAcento(s).replace(/(\d),\s+(\d{2}\s*MM)/g,'$1,$2');
   const achadas = [];
   const re = /(\d+(?:[.,]\d+)?)\s*(MM|CM|KG|G|POL|")\b|(\d+\/\d+)\s*"?/g;
   let m;
   while((m = re.exec(t)) !== null){
-    achadas.push(m[3] ? m[3] : (m[1].replace(',','.') + m[2]));
+    if(m[3]){ achadas.push(m[3]); continue; }
+    let n = m[1].replace(',','.');
+    if(n.includes('.')) n = n.replace(/0+$/,'').replace(/\.$/,'');   // 6.0 -> 6
+    achadas.push(n + m[2]);
   }
   return new Set(achadas);
 }
@@ -867,6 +904,8 @@ function pintaCatalogo(){
     kpi('Um de cada (último preço)', fmtR$(total), true) +
     kpi('Já gasto nessas notas', fmtR$(gasto), true);
 
+  const selCrit = document.getElementById('criterio');
+  if(selCrit) selCrit.value = BD.cfg.criterio;
   const alvo = document.getElementById('tab-cat');
   if(!lista.length){
     alvo.innerHTML = '<div class="vazio">' + (BD.catalogo.length ?
@@ -896,6 +935,9 @@ function pintaCatalogo(){
           '<button class="mini" onclick="editarFerramenta(\''+f.id+'\')">editar</button>' +
         '</td></tr>';
     }).join('') + '</tbody></table></div>';
+}
+function salvaCriterio(){
+  BD.cfg.criterio = document.getElementById('criterio').value; salva(); pintaTudo();
 }
 function kpi(rot, val, dinheiro){
   return '<div class="kpi'+(dinheiro?' dinheiro':'')+'"><div class="rot">'+esc(rot)+
@@ -1018,174 +1060,640 @@ function criarFerramenta(){
 }
 
 /* ==================================================================
-   COMPRA POR BASE
+   PEDIDOS — da lista de ferramentas até o pagamento
    ================================================================== */
-function listaAtual(){
-  return BD.listas.find(l => l.id === BD.cfg.listaAtual) || BD.listas[0] || null;
-}
-function novaLista(){
-  const nome = prompt('Nome da lista (ex.: Base São Mateus — abertura):');
-  if(nome === null) return;
-  const l = {id:id(), nome: nome.trim() || 'Nova lista', itens: [], criadaEm: new Date().toISOString()};
-  BD.listas.push(l); BD.cfg.listaAtual = l.id; salva(); pintaCompra();
-}
-function duplicarLista(){
-  const l = listaAtual(); if(!l){ aviso('Não há lista para duplicar.'); return; }
-  const nome = prompt('Nome da cópia:', l.nome + ' (cópia)');
-  if(nome === null) return;
-  const n = {id:id(), nome: nome.trim()||l.nome+' (cópia)',
-             itens: l.itens.map(i=>({catId:i.catId, qtd:i.qtd})), criadaEm:new Date().toISOString()};
-  BD.listas.push(n); BD.cfg.listaAtual = n.id; salva(); pintaCompra();
-  aviso('Lista duplicada — troque a base e ajuste as quantidades.');
-}
-function apagarLista(){
-  const l = listaAtual(); if(!l) return;
-  if(!confirm('Apagar a lista "'+l.nome+'"?')) return;
-  BD.listas = BD.listas.filter(x=>x.id!==l.id);
-  BD.cfg.listaAtual = BD.listas.length ? BD.listas[0].id : null;
-  salva(); pintaCompra();
-}
-function trocaLista(lid){ BD.cfg.listaAtual = lid; salva(); pintaCompra(); }
-function salvaCfg(){ BD.cfg.criterio = document.getElementById('criterio').value; salva(); }
 
-function addItemLista(catId, qtd){
-  const l = listaAtual(); if(!l || !catId) return;
-  const ja = l.itens.find(i=>i.catId===catId);
-  if(ja) ja.qtd += (qtd||1); else l.itens.push({catId, qtd: qtd||1});
-  salva(); pintaCompra();
-}
-function edQtd(catId, val){
-  const l = listaAtual(); if(!l) return;
-  const it = l.itens.find(i=>i.catId===catId); if(!it) return;
-  const v = numBR(val) ?? parseFloat(val);
-  it.qtd = isNaN(v) ? 0 : v;
-  salva(); pintaCompra();
-}
-function tiraItem(catId){
-  const l = listaAtual(); if(!l) return;
-  l.itens = l.itens.filter(i=>i.catId!==catId); salva(); pintaCompra();
-}
-
-function pintaCompra(){
-  const sel = document.getElementById('sel-lista');
-  sel.innerHTML = BD.listas.length
-    ? BD.listas.map(l=>'<option value="'+l.id+'">'+esc(l.nome)+'</option>').join('')
-    : '<option value="">— nenhuma lista —</option>';
-  const l = listaAtual();
-  if(l) sel.value = l.id;
-  document.getElementById('criterio').value = BD.cfg.criterio;
-
-  const alvo = document.getElementById('painel-compra');
-  if(!l){
-    alvo.innerHTML = '<div class="card"><div class="vazio">' +
-      'Crie uma lista para a base: <b>+ Nova lista</b> aqui em cima.</div></div>';
-    return;
+/* Anexos (PDF da NF e do boleto) vão para o IndexedDB, não para o localStorage:
+   arquivo é grande e o localStorage estoura em ~5MB. */
+const ANEXOS = (function(){
+  let db = null;
+  function abre(){
+    return new Promise((ok, err) => {
+      if(db) return ok(db);
+      const r = indexedDB.open('vammo_ferramentas', 1);
+      r.onupgradeneeded = e => {
+        const d = e.target.result;
+        if(!d.objectStoreNames.contains('anexos')) d.createObjectStore('anexos');
+      };
+      r.onsuccess = e => { db = e.target.result; ok(db); };
+      r.onerror = () => err(r.error || new Error('IndexedDB indisponível'));
+    });
   }
-  const linhas = l.itens.map(i => {
-    const f = BD.catalogo.find(c=>c.id===i.catId);
-    const pu = f ? precoUsado(f) : null;
-    return {i, f, pu, total: (pu||0) * (i.qtd||0)};
-  });
-  const total = linhas.reduce((s,r)=>s+r.total,0);
-  const semPreco = linhas.filter(r=>!r.pu).length;
-  const pecas = linhas.reduce((s,r)=>s+(r.i.qtd||0),0);
-  const rotulo = {ultimo:'último preço pago', medio:'preço médio', menor:'menor preço'}[BD.cfg.criterio];
+  function transacao(modo, fn){
+    return abre().then(d => new Promise((ok, err) => {
+      const t = d.transaction('anexos', modo), s = t.objectStore('anexos');
+      const q = fn(s);
+      t.oncomplete = () => ok(q && q.result !== undefined ? q.result : true);
+      t.onerror = () => err(t.error);
+    }));
+  }
+  return {
+    salva: (chave, blob) => transacao('readwrite', s => s.put(blob, chave)),
+    pega:  chave => transacao('readonly',  s => s.get(chave)),
+    apaga: chave => transacao('readwrite', s => s.delete(chave)),
+  };
+})();
 
-  alvo.innerHTML =
-    '<div class="kpis">' +
-      kpi('Custo da base', fmtR$(total), true) +
-      kpi('Itens diferentes', linhas.length) +
-      kpi('Peças no total', fmtN(pecas,0)) +
-      kpi('Base de cálculo', rotulo) +
+/* A esteira. Cada etapa guarda a data em que o pedido entrou nela, então dá para
+   ver onde ele parou. `campo` é a data própria daquela etapa, quando ela tem uma. */
+const ETAPAS = [
+  {id:'rascunho',  rot:'Rascunho',                cor:'#93a6b3'},
+  {id:'solicitado',rot:'Solicitado ao fornecedor',cor:'#00B4E5', campo:'dtSolicitado',  rotCampo:'Enviado em'},
+  {id:'confirmado',rot:'Confirmado',              cor:'#00B4E5', campo:'dtEntrega',     rotCampo:'Entrega combinada'},
+  {id:'recebido',  rot:'Recebido',                cor:'#28c76f', campo:'dtRecebido',    rotCampo:'Recebido em'},
+  {id:'nf',        rot:'NF lançada',              cor:'#28c76f'},
+  {id:'boleto',    rot:'Boleto recebido',         cor:'#ffab00'},
+  {id:'subir',     rot:'Ag. subir pagamento',     cor:'#ffab00'},
+  {id:'agvammo',   rot:'Ag. pagamento Vammo',     cor:'#ffab00'},
+  {id:'pago',      rot:'Pago',                    cor:'#28c76f', campo:'dtPago',        rotCampo:'Pago em'},
+];
+const etapa    = id => ETAPAS.find(e => e.id === id) || ETAPAS[0];
+const idxEtapa = id => Math.max(0, ETAPAS.findIndex(e => e.id === id));
+
+const VAMMO = {
+  razao: 'VAMMO S.A.', cnpj: '47.418.909/0001-28',
+  endereco: 'R. Santa Justina, 434 — Vila Olímpia — São Paulo/SP — CEP 04545-042'
+};
+
+const hojeISO = () => new Date().toISOString().slice(0,10);
+const brDeISO = iso => /^\d{4}-\d{2}-\d{2}$/.test(iso||'') ?
+  iso.slice(8,10)+'/'+iso.slice(5,7)+'/'+iso.slice(0,4) : '';
+
+function proxNumero(){
+  const ano = new Date().getFullYear();
+  const n = BD.pedidos.filter(p => (p.numero||'').includes('-'+ano+'-')).length + 1;
+  return 'PED-' + ano + '-' + String(n).padStart(3,'0');
+}
+
+/* Listas da versão anterior viram pedidos em rascunho — ninguém perde o que montou. */
+function migraParaPedidos(){
+  if(!BD.pedidos) BD.pedidos = [];
+  if(BD.listas && BD.listas.length){
+    for(const l of BD.listas){
+      BD.pedidos.push({
+        id: l.id || id(), numero: proxNumero(), fornecedor: '', contato: '',
+        base: l.nome || '', obs: '', status: 'rascunho',
+        itens: (l.itens||[]).map(i => {
+          const f = BD.catalogo.find(c => c.id === i.catId);
+          return {catId: i.catId, nome: f ? f.nome : '(removido do catálogo)',
+                  un: f ? (f.un||'UN') : 'UN', qtd: i.qtd, preco: f ? (precoUsado(f)||0) : 0};
+        }),
+        historico: [{status:'rascunho', iso: hojeISO()}],
+        criadoEm: l.criadaEm || new Date().toISOString()
+      });
+    }
+    BD.listas = [];
+  }
+}
+
+function pedidoAtual(){
+  return BD.pedidos.find(p => p.id === BD.cfg.pedidoAberto) || null;
+}
+const totalPedido = p => (p.itens||[]).reduce((s,i)=> s + (i.qtd||0)*(i.preco||0), 0);
+
+function novoPedido(){
+  const p = {id:id(), numero: proxNumero(), fornecedor:'', contato:'', base:'', obs:'',
+             status:'rascunho', itens:[], historico:[{status:'rascunho', iso:hojeISO()}],
+             criadoEm:new Date().toISOString()};
+  BD.pedidos.push(p); BD.cfg.pedidoAberto = p.id; salva(); pintaPedidos();
+}
+
+function mudaStatus(pid, novo){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  if(idxEtapa(novo) < idxEtapa(p.status) &&
+     !confirm('Voltar o pedido de "'+etapa(p.status).rot+'" para "'+etapa(novo).rot+'"?')) return;
+  // exigências mínimas para não marcar etapa que não aconteceu
+  if(novo === 'nf' && !(p.nf && p.nf.arquivo)){
+    aviso('Anexe a NF antes de marcar esta etapa.'); return;
+  }
+  if(novo === 'boleto' && !(p.boleto && p.boleto.arquivo)){
+    aviso('Anexe o boleto antes de marcar esta etapa.'); return;
+  }
+  if(novo !== 'rascunho' && !p.itens.length){ aviso('O pedido está sem itens.'); return; }
+  if(novo !== 'rascunho' && !p.fornecedor.trim()){ aviso('Informe o fornecedor.'); return; }
+  p.status = novo;
+  p.historico = p.historico || [];
+  p.historico.push({status: novo, iso: hojeISO()});
+  const e = etapa(novo);
+  if(e.campo && !p[e.campo]) p[e.campo] = hojeISO();
+  // ao sair do rascunho o preço vira o preço negociado: congela, não segue mais o catálogo
+  if(novo === 'solicitado') p.congelado = true;
+  salva(); pintaPedidos(); aviso('Pedido ' + p.numero + ': ' + e.rot + '.');
+}
+
+/* ---------- anexos: NF e boleto ---------- */
+async function anexaNF(pid, file){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p || !file) return;
+  const chave = 'nf_' + pid;
+  try{
+    const r = await lePDF(file);
+    await ANEXOS.salva(chave, file);
+    p.nf = {arquivo: chave, nomeArquivo: file.name, numero: r.meta.numero, data: r.meta.data,
+            chaveNF: r.meta.chave, fornecedor: r.meta.fornecedor,
+            total: r.totalNota != null ? r.totalNota : r.soma, soma: r.soma,
+            itens: r.itens, conferencia: confereNF(p, r.itens)};
+    if(!p.fornecedor.trim() && r.meta.fornecedor) p.fornecedor = r.meta.fornecedor;
+    salva(); pintaPedidos();
+    const d = p.nf.conferencia;
+    aviso(d.divergencias.length ? 'NF anexada — ' + d.divergencias.length + ' divergência(s) para conferir.'
+                                : 'NF anexada e conferida: bate com o pedido.');
+  }catch(e){ aviso('Não consegui ler esse PDF: ' + e.message, 5000); }
+}
+
+/* Confere o que a nota traz contra o que foi pedido. Casa pelo mesmo critério do
+   catálogo (tipo + medida), então marca/código do fornecedor não atrapalham. */
+function confereNF(p, itensNF){
+  const sobrando = itensNF.map((it,i) => ({i, it, usado:false}));
+  const linhas = [], divergencias = [];
+  // o item do pedido responde pelo nome do catálogo E por todos os apelidos dele
+  // (a descrição crua da nota costuma ser um deles)
+  const apelidos = ped => {
+    const f = BD.catalogo.find(c => c.id === ped.catId);
+    return [ped.nome].concat(f ? (f.apelidos||[]) : []);
+  };
+  const mesmoItem = (ped, desc) => apelidos(ped).some(n =>
+    chaveNome(n) === chaveNome(desc) || canon(n) === canon(desc) ||
+    (mesmasMedidas(n, desc) && parecenca(n, desc) >= 0.72));
+  for(const ped of p.itens){
+    const alvo = sobrando.find(s => !s.usado && mesmoItem(ped, s.it.descricao));
+    if(!alvo){
+      linhas.push({nome: ped.nome, situacao: 'faltou', qtdPed: ped.qtd, precoPed: ped.preco});
+      divergencias.push('Não veio na NF: ' + ped.nome);
+      continue;
+    }
+    alvo.usado = true;
+    const dq = (alvo.it.qtd||0) - (ped.qtd||0);
+    const dp = +((alvo.it.vunit||0) - (ped.preco||0)).toFixed(2);
+    linhas.push({nome: ped.nome, situacao: (dq||dp) ? 'difere' : 'ok',
+                 qtdPed: ped.qtd, qtdNF: alvo.it.qtd, precoPed: ped.preco, precoNF: alvo.it.vunit,
+                 dq, dp});
+    if(dq) divergencias.push(ped.nome + ': pedi ' + fmtN(ped.qtd,0) + ', veio ' + fmtN(alvo.it.qtd,0));
+    if(dp) divergencias.push(ped.nome + ': combinado ' + fmtR$(ped.preco) + ', na NF ' + fmtR$(alvo.it.vunit));
+  }
+  for(const s of sobrando) if(!s.usado){
+    linhas.push({nome: s.it.descricao, situacao: 'extra', qtdNF: s.it.qtd, precoNF: s.it.vunit});
+    divergencias.push('Veio na NF sem estar no pedido: ' + s.it.descricao);
+  }
+  const totalNF = itensNF.reduce((x,i)=>x+i.vtotal,0);
+  return {linhas, divergencias, totalNF: +totalNF.toFixed(2),
+          totalPedido: +totalPedido(p).toFixed(2)};
+}
+
+/* Boleto: a linha digitável é a fonte confiável de valor e vencimento -- mas só
+   vale a janela de 47 dígitos que fecha os dígitos verificadores dos 3 campos.
+   Sem isso a gente pega dígitos vizinhos e lê "R$ 70.001.456,16" no lugar de
+   "R$ 1.456,16" (aconteceu, com boleto de verdade). */
+function mod10(bloco){
+  let soma = 0, peso = 2;
+  for(let i = bloco.length-1; i >= 0; i--){
+    let v = +bloco[i] * peso;
+    if(v > 9) v -= 9;
+    soma += v; peso = peso === 2 ? 1 : 2;
+  }
+  return (10 - soma % 10) % 10;
+}
+function linhaValida(l){
+  return /^\d{47}$/.test(l) &&
+    mod10(l.substr(0,9))  === +l[9]  &&
+    mod10(l.substr(10,10)) === +l[20] &&
+    mod10(l.substr(21,10)) === +l[31];
+}
+function vencDoFator(fator){
+  // o fator zerou em 22/02/2025 (voltou de 9999 para 1000): calcula pelas duas
+  // bases e fica com a data plausível
+  const cand = [Date.UTC(1997,9,7) + fator*86400000,
+                Date.UTC(2025,1,22) + (fator-1000)*86400000];
+  const hoje = Date.now();
+  const boa = cand.find(t => t > hoje - 730*86400000 && t < hoje + 1825*86400000);
+  return boa ? new Date(boa).toISOString().slice(0,10) : '';
+}
+function lerBoleto(texto){
+  const T = texto.replace(/\u00a0/g,' ');
+  const tentativas = [];
+  for(const m of T.matchAll(/[\d][\d\s.]{45,}[\d]/g)) tentativas.push(m[0].replace(/\D/g,''));
+  tentativas.push(T.replace(/\D/g,''));   // último recurso: a página inteira
+  let linha = '', valor = null, venc = '';
+  for(const d of tentativas){
+    for(let i = 0; i + 47 <= d.length; i++){
+      const l = d.substr(i,47);
+      if(!linhaValida(l)) continue;
+      const v = parseInt(l.substr(37,10),10) / 100;
+      const dt = vencDoFator(parseInt(l.substr(33,4),10));
+      if(v <= 0 || v > 1000000 || !dt) continue;   // sanidade: senão é coincidência
+      linha = l; valor = v; venc = dt; break;
+    }
+    if(linha) break;
+  }
+  if(!valor){
+    const m = T.match(/VALOR\s+(?:DO\s+)?DOCUMENTO[^\d]{0,40}([\d.]+,\d{2})/i);
+    if(m) valor = numBR(m[1]);
+  }
+  if(!venc){
+    const m = T.match(/VENCIMENTO[^\d]{0,40}(\d{2}\/\d{2}\/\d{4})/i);
+    if(m) venc = isoDeBR(m[1]);
+  }
+  return {linha, valor, venc};
+}
+
+async function anexaBoleto(pid, file){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p || !file) return;
+  const chave = 'bol_' + pid;
+  try{
+    let texto = '';
+    const doc = await pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise;
+    for(let i=1;i<=doc.numPages;i++){
+      const c = await (await doc.getPage(i)).getTextContent();
+      texto += c.items.map(x=>x.str).join(' ') + '\n';
+    }
+    const b = lerBoleto(texto);
+    await ANEXOS.salva(chave, file);
+    p.boleto = {arquivo: chave, nomeArquivo: file.name, linha: b.linha,
+                valor: b.valor, venc: b.venc};
+    salva(); pintaPedidos();
+    aviso(b.valor ? 'Boleto anexado: ' + fmtR$(b.valor) + (b.venc ? ' vence ' + brDeISO(b.venc) : '')
+                  : 'Boleto anexado (não consegui ler valor/vencimento — preencha à mão).');
+  }catch(e){ aviso('Não consegui ler o boleto: ' + e.message, 5000); }
+}
+
+async function abreAnexo(chave){
+  try{
+    const blob = await ANEXOS.pega(chave);
+    if(!blob){ aviso('Anexo não encontrado neste navegador.'); return; }
+    window.open(URL.createObjectURL(blob), '_blank');
+  }catch(e){ aviso('Falha ao abrir o anexo: ' + e.message); }
+}
+async function tiraAnexo(pid, qual){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  if(!confirm('Remover o ' + (qual==='nf'?'DANFE':'boleto') + ' deste pedido?')) return;
+  try{ await ANEXOS.apaga((qual==='nf'?'nf_':'bol_') + pid); }catch(e){}
+  delete p[qual === 'nf' ? 'nf' : 'boleto'];
+  salva(); pintaPedidos();
+}
+
+/* ---------- o pedido saindo do app ---------- */
+function textoWhatsApp(p){
+  const L = [];
+  L.push('*PEDIDO ' + p.numero + ' — ' + VAMMO.razao + '*');
+  if(p.fornecedor) L.push('Fornecedor: ' + p.fornecedor);
+  if(p.base) L.push('Entrega: ' + p.base);
+  L.push('');
+  p.itens.forEach((i,n) => L.push(
+    (n+1) + ') ' + i.nome + ' — ' + fmtN(i.qtd,0) + ' ' + (i.un||'UN') +
+    (i.preco ? ' x ' + fmtR$(i.preco) + ' = ' + fmtR$(i.qtd*i.preco) : '')));
+  L.push('');
+  L.push('*Total: ' + fmtR$(totalPedido(p)) + '*');
+  if(p.dtEntrega) L.push('Entrega combinada: ' + brDeISO(p.dtEntrega));
+  if(p.obs) L.push('Obs.: ' + p.obs);
+  L.push('');
+  L.push('CNPJ ' + VAMMO.cnpj);
+  return L.join('\n');
+}
+function copiaWhatsApp(pid){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  const txt = textoWhatsApp(p);
+  const feito = () => aviso('Pedido copiado — cole na conversa com o fornecedor.');
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(txt).then(feito, () => caiNoTextarea(txt, feito));
+  } else caiNoTextarea(txt, feito);
+}
+function caiNoTextarea(txt, feito){
+  const t = document.createElement('textarea');
+  t.value = txt; t.style.position='fixed'; t.style.opacity='0';
+  document.body.appendChild(t); t.select();
+  try{ document.execCommand('copy'); feito(); }
+  catch(e){ janela('<h3>Copie o pedido</h3><textarea rows="18">'+esc(txt)+
+    '</textarea><div class="linha" style="margin-top:12px"><button onclick="fechaJanela()">Fechar</button></div>'); }
+  t.remove();
+}
+function csvPedido(pid){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  const linhas = [['Pedido','Fornecedor','Entrega','Ferramenta','Unidade','Quantidade','Valor unitario','Total']];
+  for(const i of p.itens)
+    linhas.push([p.numero, p.fornecedor, p.base, i.nome, i.un||'UN', i.qtd,
+                 (i.preco||0).toFixed(2).replace('.',','), ((i.qtd||0)*(i.preco||0)).toFixed(2).replace('.',',')]);
+  linhas.push(['','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
+  const csv = '﻿' + linhas.map(l => l.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  baixar(new Blob([csv], {type:'text/csv;charset=utf-8'}), p.numero.toLowerCase() + '.csv');
+}
+
+/* ---------- tela: lista de pedidos ou o pedido aberto ---------- */
+function pintaPedidos(){
+  const alvo = document.getElementById('painel-pedidos');
+  if(!alvo) return;
+  const p = pedidoAtual();
+  alvo.innerHTML = p ? htmlPedido(p) : htmlListaPedidos();
+  if(p) pintaBuscaItem();
+}
+
+function chipStatus(st){
+  const e = etapa(st);
+  return '<span class="chip" style="border-color:'+e.cor+'55;color:'+e.cor+';background:'+e.cor+'1a">'+
+         esc(e.rot)+'</span>';
+}
+
+function htmlListaPedidos(){
+  const ps = BD.pedidos.slice().sort((a,b)=> (b.criadoEm||'').localeCompare(a.criadoEm||''));
+  const abertos = ps.filter(p => p.status !== 'pago');
+  const emAberto = abertos.reduce((s,p)=>s+totalPedido(p),0);
+  const aPagar = ps.filter(p => ['boleto','subir','agvammo'].includes(p.status));
+  const atrasados = ps.filter(p => p.dtEntrega && p.dtEntrega < hojeISO() &&
+                                   idxEtapa(p.status) < idxEtapa('recebido'));
+  return '<div class="kpis">' +
+      kpi('Pedidos em aberto', abertos.length) +
+      kpi('Valor em aberto', fmtR$(emAberto), true) +
+      kpi('Aguardando pagamento', aPagar.length ? fmtR$(aPagar.reduce((s,p)=>s+totalPedido(p),0)) : 'R$ 0,00', true) +
+      kpi('Entrega atrasada', atrasados.length) +
     '</div>' +
-    (semPreco ? '<div class="aviso at naoimprime">' + semPreco +
-      ' item(ns) sem preço registrado — entram como zero no total. Importe uma nota com eles ou informe o valor no catálogo.</div>' : '') +
+    (atrasados.length ? '<div class="aviso at">' + atrasados.length +
+      ' pedido(s) passaram da data de entrega combinada e ainda não foram marcados como recebidos.</div>' : '') +
     '<div class="card">' +
-      '<div class="linha naoimprime" style="margin-bottom:12px">' +
-        '<div class="cresce"><label class="campo">Adicionar ferramenta</label>' +
-          '<input id="busca-add" placeholder="digite parte do nome e escolha abaixo" oninput="pintaSugestoes()"></div>' +
-        '<div style="flex:0 0 110px"><label class="campo">Qtd</label>' +
-          '<input id="qtd-add" value="1" onkeydown="if(event.key===\'Enter\')addPrimeiro()"></div>' +
+      '<div class="linha" style="margin-bottom:12px">' +
+        '<h2 style="margin:0">Pedidos <span class="cont">'+(ps.length?'('+ps.length+')':'')+'</span></h2>' +
+        '<button class="primario" style="margin-left:auto" onclick="novoPedido()">+ Novo pedido</button>' +
       '</div>' +
-      '<div id="sugestoes" class="naoimprime"></div>' +
-      '<h2 style="margin-top:6px">' + esc(l.nome) + '</h2>' +
-      '<p class="ajuda">Custo calculado com o <b>' + rotulo + '</b>.</p>' +
-      (linhas.length ?
+      (ps.length ?
       '<div class="tabwrap"><table><thead><tr>' +
-        '<th style="min-width:250px">Ferramenta</th><th>Categoria</th><th>Un</th>' +
-        '<th class="num">Qtd</th><th class="num">Vlr unit.</th><th class="num">Custo</th><th class="naoimprime"></th>' +
+        '<th>Pedido</th><th>Fornecedor</th><th>Entrega em</th><th class="num">Itens</th>' +
+        '<th class="num">Valor</th><th>Status</th><th>Prazo</th><th></th>' +
       '</tr></thead><tbody>' +
-      linhas.sort((a,b)=>b.total-a.total).map(r =>
-        '<tr>' +
-          '<td>' + (r.f ? '<b>'+esc(r.f.nome)+'</b>' : '<span class="tag sem">item removido do catálogo</span>') + '</td>' +
-          '<td>' + esc(r.f && r.f.categoria ? r.f.categoria : '—') + '</td>' +
-          '<td>' + esc(r.f ? (r.f.un||'UN') : '—') + '</td>' +
-          '<td class="num" style="width:90px"><input style="text-align:right" value="'+fmtN(r.i.qtd,0)+'" onchange="edQtd(\''+r.i.catId+'\',this.value)"></td>' +
-          '<td class="num">' + (r.pu ? fmtR$(r.pu) : '<span class="tag sem">sem preço</span>') + '</td>' +
-          '<td class="num"><b>' + fmtR$(r.total) + '</b></td>' +
-          '<td class="num naoimprime"><button class="mini perigo" onclick="tiraItem(\''+r.i.catId+'\')">✕</button></td>' +
-        '</tr>').join('') +
-      '<tr><td colspan="5" style="text-align:right;font-weight:600">TOTAL DA BASE</td>' +
-        '<td class="num" style="font-size:16px;font-weight:700;color:var(--ciano)">'+fmtR$(total)+'</td>' +
-        '<td class="naoimprime"></td></tr>' +
-      '</tbody></table></div>'
-      : '<div class="vazio">Lista vazia — use o campo acima para adicionar ferramentas.</div>') +
-      '<div class="linha naoimprime" style="margin-top:14px">' +
-        '<button onclick="exportaCSV()">⬇ Baixar CSV</button>' +
-        '<button onclick="window.print()">🖨 Imprimir / PDF</button>' +
-        '<button class="mini" onclick="renomearLista()">Renomear lista</button>' +
-      '</div>' +
+      ps.map(p => {
+        const atrasado = p.dtEntrega && p.dtEntrega < hojeISO() && idxEtapa(p.status) < idxEtapa('recebido');
+        return '<tr>' +
+          '<td><b>'+esc(p.numero)+'</b></td>' +
+          '<td>'+esc(p.fornecedor || '—')+'</td>' +
+          '<td>'+esc(p.base || '—')+'</td>' +
+          '<td class="num">'+(p.itens||[]).length+'</td>' +
+          '<td class="num"><b>'+fmtR$(totalPedido(p))+'</b></td>' +
+          '<td>'+chipStatus(p.status)+'</td>' +
+          '<td>'+(p.dtEntrega ? (atrasado ? '<span class="tag sem">'+brDeISO(p.dtEntrega)+'</span>'
+                                          : brDeISO(p.dtEntrega)) : '—')+'</td>' +
+          '<td class="num"><button class="mini" onclick="abrePedido(\''+p.id+'\')">abrir</button></td>' +
+        '</tr>';
+      }).join('') + '</tbody></table></div>'
+      : '<div class="vazio">Nenhum pedido ainda. <b>+ Novo pedido</b> para montar o primeiro.</div>') +
     '</div>';
-  pintaSugestoes();
 }
-function renomearLista(){
-  const l = listaAtual(); if(!l) return;
-  const n = prompt('Nome da lista:', l.nome);
-  if(n === null) return;
-  l.nome = n.trim() || l.nome; salva(); pintaCompra();
+
+function abrePedido(pid){ BD.cfg.pedidoAberto = pid; salva(); pintaPedidos(); window.scrollTo(0,0); }
+function fechaPedido(){ BD.cfg.pedidoAberto = null; salva(); pintaPedidos(); }
+
+function htmlPedido(p){
+  const total = totalPedido(p);
+  const conf = p.nf && p.nf.conferencia;
+  return '<div class="card naoimprime">' +
+    '<div class="linha" style="margin-bottom:6px">' +
+      '<button class="mini" onclick="fechaPedido()">← Pedidos</button>' +
+      '<h2 style="margin:0 0 0 6px">'+esc(p.numero)+'</h2>' + chipStatus(p.status) +
+      '<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">' +
+        '<button class="mini" onclick="imprimePedido(\''+p.id+'\')">🖨 PDF A4</button>' +
+        '<button class="mini" onclick="copiaWhatsApp(\''+p.id+'\')">💬 WhatsApp</button>' +
+        '<button class="mini" onclick="csvPedido(\''+p.id+'\')">⬇ CSV</button>' +
+        '<button class="mini" onclick="duplicaPedido(\''+p.id+'\')">Duplicar</button>' +
+        '<button class="mini perigo" onclick="apagaPedido(\''+p.id+'\')">Excluir</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="esteira">' + ETAPAS.map((e,i) => {
+      const at = idxEtapa(p.status), feita = i <= at;
+      const quando = (p.historico||[]).filter(h=>h.status===e.id).slice(-1)[0];
+      return '<button class="passo'+(feita?' feito':'')+(i===at?' atual':'')+'" ' +
+        'style="'+(feita?'--c:'+e.cor:'')+'" onclick="mudaStatus(\''+p.id+'\',\''+e.id+'\')">' +
+        '<span class="bolinha"></span>' + esc(e.rot) +
+        (quando && feita ? '<small>'+brDeISO(quando.iso)+'</small>' : '') + '</button>';
+    }).join('') + '</div>' +
+  '</div>' +
+
+  '<div class="card">' +
+    '<h2>Dados do pedido</h2>' +
+    '<div class="grade">' +
+      campo('Fornecedor', 'texto', p.id, 'fornecedor', p.fornecedor) +
+      campo('Contato / vendedor', 'texto', p.id, 'contato', p.contato) +
+      campo('Entregar em (base)', 'texto', p.id, 'base', p.base) +
+      campo('Enviado ao fornecedor em', 'data', p.id, 'dtSolicitado', p.dtSolicitado) +
+      campo('Entrega combinada', 'data', p.id, 'dtEntrega', p.dtEntrega) +
+      campo('Recebido em', 'data', p.id, 'dtRecebido', p.dtRecebido) +
+    '</div>' +
+    '<div style="margin-top:10px"><label class="campo">Observação para o fornecedor</label>' +
+      '<textarea rows="2" onchange="edPedido(\''+p.id+'\',\'obs\',this.value)">'+esc(p.obs||'')+'</textarea></div>' +
+  '</div>' +
+
+  '<div class="card">' +
+    '<h2>Ferramentas do pedido <span class="cont">'+(p.itens.length?'('+p.itens.length+')':'')+'</span></h2>' +
+    (p.congelado ? '<p class="ajuda">Pedido já enviado: o preço aqui é o combinado, não acompanha mais o catálogo.</p>'
+                 : '<p class="ajuda">Preço puxado do catálogo — dá para ajustar para o valor negociado.</p>') +
+    '<div class="linha naoimprime" style="margin-bottom:12px">' +
+      '<div class="cresce"><label class="campo">Adicionar ferramenta</label>' +
+        '<input id="busca-item" placeholder="digite parte do nome e escolha abaixo" oninput="pintaBuscaItem()"></div>' +
+      '<div style="flex:0 0 100px"><label class="campo">Qtd</label>' +
+        '<input id="qtd-item" value="1" onkeydown="if(event.key===\'Enter\')addPrimeiroItem()"></div>' +
+    '</div>' +
+    '<div id="sug-item" class="naoimprime"></div>' +
+    (p.itens.length ?
+    '<div class="tabwrap"><table><thead><tr><th style="min-width:240px">Ferramenta</th><th>Un</th>' +
+      '<th class="num">Qtd</th><th class="num">Vlr unit.</th><th class="num">Total</th><th class="naoimprime"></th>' +
+    '</tr></thead><tbody>' +
+    p.itens.map((i,n) =>
+      '<tr><td><b>'+esc(i.nome)+'</b></td><td>'+esc(i.un||'UN')+'</td>' +
+      '<td class="num" style="width:90px"><input style="text-align:right" value="'+fmtN(i.qtd,0)+'" onchange="edItem(\''+p.id+'\','+n+',\'qtd\',this.value)"></td>' +
+      '<td class="num" style="width:110px"><input style="text-align:right" value="'+fmtN(i.preco,2)+'" onchange="edItem(\''+p.id+'\','+n+',\'preco\',this.value)"></td>' +
+      '<td class="num"><b>'+fmtR$((i.qtd||0)*(i.preco||0))+'</b></td>' +
+      '<td class="num naoimprime"><button class="mini perigo" onclick="tiraItem2(\''+p.id+'\','+n+')">✕</button></td></tr>').join('') +
+    '<tr><td colspan="4" style="text-align:right;font-weight:600">TOTAL DO PEDIDO</td>' +
+      '<td class="num" style="font-size:16px;font-weight:700;color:var(--ciano)">'+fmtR$(total)+'</td>' +
+      '<td class="naoimprime"></td></tr>' +
+    '</tbody></table></div>'
+    : '<div class="vazio">Sem ferramentas. Busque no campo acima para adicionar.</div>') +
+  '</div>' +
+
+  '<div class="card">' +
+    '<h2>Nota fiscal e boleto</h2>' +
+    '<div class="grade2">' +
+      blocoAnexo(p, 'nf') +
+      blocoAnexo(p, 'boleto') +
+    '</div>' +
+    (conf ? htmlConferencia(p, conf) : '') +
+  '</div>';
 }
-function pintaSugestoes(){
-  const cx = document.getElementById('sugestoes'); if(!cx) return;
-  const q = chaveNome(document.getElementById('busca-add').value || '');
-  const l = listaAtual();
+
+function campo(rot, tipo, pid, chave, valor){
+  const t = tipo === 'data' ? 'date' : 'text';
+  return '<div><label class="campo">'+esc(rot)+'</label>' +
+    '<input type="'+t+'" value="'+esc(valor||'')+'" onchange="edPedido(\''+pid+'\',\''+chave+'\',this.value)"></div>';
+}
+function edPedido(pid, chave, val){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  p[chave] = val; salva();
+  if(['fornecedor','base','dtEntrega'].includes(chave)) pintaPedidos();
+}
+function edItem(pid, n, chave, val){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p || !p.itens[n]) return;
+  const v = numBR(val) != null ? numBR(val) : parseFloat(String(val).replace(',','.'));
+  if(!isNaN(v)) p.itens[n][chave] = v;
+  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens);
+  salva(); pintaPedidos();
+}
+function tiraItem2(pid, n){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  p.itens.splice(n,1);
+  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens);
+  salva(); pintaPedidos();
+}
+function pintaBuscaItem(){
+  const cx = document.getElementById('sug-item'); if(!cx) return;
+  const q = chaveNome((document.getElementById('busca-item')||{}).value || '');
+  const p = pedidoAtual();
   if(!q){ cx.innerHTML=''; return; }
-  const jaTem = new Set((l ? l.itens : []).map(i=>i.catId));
+  const tem = new Set((p ? p.itens : []).map(i=>i.catId));
   const achados = BD.catalogo
     .filter(f => chaveNome([f.nome].concat(f.apelidos||[]).join(' ')).includes(q))
-    .sort((a,b)=>a.nome.localeCompare(b.nome)).slice(0,8);
+    .sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).slice(0,8);
   cx.innerHTML = achados.length
     ? '<div class="linha" style="margin-bottom:12px">' + achados.map(f =>
-        '<button class="mini" onclick="addDaBusca(\''+f.id+'\')">' + (jaTem.has(f.id)?'✓ ':'+ ') +
-        esc(f.nome) + ' <span style="color:var(--ciano)">'+fmtR$(precoUsado(f))+'</span></button>').join('') +
-      '</div>'
-    : '<div class="aviso at" style="padding:7px 11px">Nada no catálogo com esse nome.</div>';
+        '<button class="mini" onclick="addItemPedido(\''+f.id+'\')">'+(tem.has(f.id)?'✓ ':'+ ')+
+        esc(f.nome)+' <span style="color:var(--ciano)">'+fmtR$(precoUsado(f))+'</span></button>').join('') + '</div>'
+    : '<div class="aviso at" style="padding:7px 11px">Nada no catálogo com esse nome. ' +
+      'Importe a nota dessa ferramenta ou cadastre na aba Catálogo.</div>';
 }
-function addDaBusca(fid){
-  const q = parseFloat((document.getElementById('qtd-add').value||'1').replace(',','.'));
-  addItemLista(fid, isNaN(q)||q<=0 ? 1 : q);
-  document.getElementById('busca-add').value = '';
+function addItemPedido(catId){
+  const p = pedidoAtual(), f = BD.catalogo.find(c=>c.id===catId);
+  if(!p || !f) return;
+  const q = parseFloat(((document.getElementById('qtd-item')||{}).value||'1').replace(',','.'));
+  const qtd = (isNaN(q)||q<=0) ? 1 : q;
+  const ja = p.itens.find(i=>i.catId===catId);
+  if(ja) ja.qtd += qtd;
+  else p.itens.push({catId, nome: f.nome, un: f.un||'UN', qtd, preco: precoUsado(f) || 0});
+  if(p.nf && p.nf.itens) p.nf.conferencia = confereNF(p, p.nf.itens);
+  salva(); pintaPedidos();
+  const b = document.getElementById('busca-item'); if(b){ b.value=''; b.focus(); }
 }
-function addPrimeiro(){
-  const b = document.getElementById('sugestoes').querySelector('button');
-  if(b) b.click();
+function addPrimeiroItem(){
+  const b = document.getElementById('sug-item').querySelector('button'); if(b) b.click();
 }
-function exportaCSV(){
-  const l = listaAtual(); if(!l) return;
-  const linhas = [['Ferramenta','Categoria','Unidade','Quantidade','Valor unitario','Custo total']];
-  let total = 0;
-  for(const i of l.itens){
-    const f = BD.catalogo.find(c=>c.id===i.catId); if(!f) continue;
-    const pu = precoUsado(f) || 0, t = pu * (i.qtd||0); total += t;
-    linhas.push([f.nome, f.categoria||'', f.un||'UN', i.qtd, pu.toFixed(2).replace('.',','), t.toFixed(2).replace('.',',')]);
-  }
-  linhas.push(['TOTAL','','','','', total.toFixed(2).replace('.',',')]);
-  const csv = '﻿' + linhas.map(l => l.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(';')).join('\r\n');
-  baixar(new Blob([csv], {type:'text/csv;charset=utf-8'}),
-         'ferramentas_' + l.nome.replace(/[^\w]+/g,'_').toLowerCase() + '.csv');
+function duplicaPedido(pid){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  const n = {id:id(), numero: proxNumero(), fornecedor:p.fornecedor, contato:p.contato,
+             base:'', obs:p.obs, status:'rascunho',
+             itens: p.itens.map(i=>({catId:i.catId, nome:i.nome, un:i.un, qtd:i.qtd, preco:i.preco})),
+             historico:[{status:'rascunho', iso:hojeISO()}], criadoEm:new Date().toISOString()};
+  BD.pedidos.push(n); BD.cfg.pedidoAberto = n.id; salva(); pintaPedidos();
+  aviso('Pedido duplicado — troque a base e ajuste as quantidades.');
 }
-</script>
+async function apagaPedido(pid){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  if(!confirm('Excluir o pedido '+p.numero+'? Os anexos dele também somem.')) return;
+  for(const k of ['nf_','bol_']){ try{ await ANEXOS.apaga(k+pid); }catch(e){} }
+  BD.pedidos = BD.pedidos.filter(x=>x.id!==pid);
+  BD.cfg.pedidoAberto = null; salva(); pintaPedidos();
+}
 
-<script>
+function blocoAnexo(p, qual){
+  const ehNF = qual === 'nf', a = ehNF ? p.nf : p.boleto;
+  const rot = ehNF ? 'Nota fiscal (DANFE)' : 'Boleto';
+  if(!a) return '<div class="anexo vazio2">' +
+    '<b>'+rot+'</b><p>Nenhum arquivo anexado.</p>' +
+    '<input type="file" accept="application/pdf" id="arq-'+qual+'" hidden ' +
+      'onchange="'+(ehNF?'anexaNF':'anexaBoleto')+'(\''+p.id+'\', this.files[0]); this.value=\'\'">' +
+    '<button onclick="document.getElementById(\'arq-'+qual+'\').click()">📎 Anexar PDF</button>' +
+    (ehNF ? '<p class="dica">O app lê a nota, compara com o pedido e aponta divergência.</p>'
+          : '<p class="dica">O app lê valor e vencimento da linha digitável.</p>') + '</div>';
+  const info = ehNF
+    ? ['NF ' + (a.numero||'?') + (a.data ? ' · ' + a.data : ''),
+       'Total da nota: ' + fmtR$(a.total),
+       a.fornecedor ? esc(a.fornecedor) : '']
+    : [a.valor ? 'Valor: ' + fmtR$(a.valor) : 'Valor não lido',
+       a.venc ? 'Vencimento: ' + brDeISO(a.venc) : 'Vencimento não lido',
+       a.linha ? '<span style="font-size:11px;word-break:break-all">'+esc(a.linha)+'</span>' : ''];
+  return '<div class="anexo">' +
+    '<b>'+rot+'</b>' +
+    '<div class="tag novo" style="margin:6px 0">📎 '+esc(a.nomeArquivo||'arquivo.pdf')+'</div>' +
+    info.filter(Boolean).map(t=>'<p>'+t+'</p>').join('') +
+    '<div class="linha" style="margin-top:8px">' +
+      '<button class="mini" onclick="abreAnexo(\''+a.arquivo+'\')">abrir</button>' +
+      (ehNF && a.itens && a.itens.length ?
+        '<button class="mini" onclick="lancaNFnoCatalogo(\''+p.id+'\')">lançar no catálogo</button>' : '') +
+      '<button class="mini perigo" onclick="tiraAnexo(\''+p.id+'\',\''+qual+'\')">remover</button>' +
+    '</div></div>';
+}
+
+function htmlConferencia(p, c){
+  const dif = c.linhas.filter(l => l.situacao !== 'ok');
+  return '<h2 style="margin-top:18px">Conferência da nota contra o pedido</h2>' +
+    '<div class="linha" style="margin:8px 0 12px">' +
+      '<div class="kpi" style="flex:1 1 180px"><div class="rot">Pedido</div><div class="val">'+fmtR$(c.totalPedido)+'</div></div>' +
+      '<div class="kpi" style="flex:1 1 180px;border-left-color:'+(Math.abs(c.totalNF-c.totalPedido)<=0.05?'var(--ok)':'var(--alerta)')+
+        '"><div class="rot">Nota fiscal</div><div class="val">'+fmtR$(c.totalNF)+'</div></div>' +
+    '</div>' +
+    (dif.length
+      ? '<div class="aviso at"><b>'+dif.length+' item(ns) para conferir</b></div>'
+      : '<div class="aviso ok">A nota bate item a item com o pedido.</div>') +
+    '<div class="tabwrap"><table><thead><tr><th>Ferramenta</th><th>Situação</th>' +
+      '<th class="num">Qtd pedida</th><th class="num">Qtd na NF</th>' +
+      '<th class="num">Preço combinado</th><th class="num">Preço na NF</th></tr></thead><tbody>' +
+    c.linhas.map(l => {
+      const selo = {ok:'<span class="tag novo">confere</span>',
+                    difere:'<span class="tag dup">difere</span>',
+                    faltou:'<span class="tag sem">não veio</span>',
+                    extra:'<span class="tag dup">veio a mais</span>'}[l.situacao];
+      return '<tr><td>'+esc(l.nome)+'</td><td>'+selo+'</td>' +
+        '<td class="num">'+(l.qtdPed!=null?fmtN(l.qtdPed,0):'—')+'</td>' +
+        '<td class="num">'+(l.qtdNF!=null?fmtN(l.qtdNF,0):'—')+'</td>' +
+        '<td class="num">'+(l.precoPed!=null?fmtR$(l.precoPed):'—')+'</td>' +
+        '<td class="num'+(l.dp?' dif':'')+'">'+(l.precoNF!=null?fmtR$(l.precoNF):'—')+'</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+
+/* a nota anexada ao pedido também alimenta o catálogo — pela mesma tela de
+   conferência de sempre, para você revisar antes de gravar */
+function lancaNFnoCatalogo(pid){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p || !p.nf) return;
+  if(p.nf.chaveNF && BD.notas.some(n => n.chave === p.nf.chaveNF)){
+    aviso('Essa nota já foi lançada no catálogo.'); return;
+  }
+  const r = {arquivo: p.nf.nomeArquivo, itens: p.nf.itens, soma: p.nf.soma,
+             totalNota: p.nf.total,
+             meta: {numero:p.nf.numero, data:p.nf.data, chave:p.nf.chaveNF,
+                    fornecedor:p.nf.fornecedor, cnpj:''}};
+  const vistas = new Map();
+  PENDENTES = [prepararConferencia(r, vistas)];
+  document.querySelector('nav button[data-tela=notas]').click();
+  pintaConferencia();
+  document.getElementById('cx-conferencia').scrollIntoView({behavior:'smooth'});
+}
+
+/* ---------- documento A4 para mandar ao fornecedor ---------- */
+function imprimePedido(pid){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  if(!p.itens.length){ aviso('O pedido está sem itens.'); return; }
+  const logo = (document.getElementById('logo')||{}).src || '';
+  document.getElementById('doc-impressao').innerHTML =
+    '<div class="doc">' +
+      '<div class="doc-topo">' +
+        (logo ? '<img src="'+logo+'" alt="Vammo">' : '') +
+        '<div class="doc-emp"><b>'+esc(VAMMO.razao)+'</b><br>CNPJ '+esc(VAMMO.cnpj)+'<br>'+esc(VAMMO.endereco)+'</div>' +
+        '<div class="doc-num">PEDIDO<br><b>'+esc(p.numero)+'</b><br><small>'+brDeISO(p.dtSolicitado||hojeISO())+'</small></div>' +
+      '</div>' +
+      '<table class="doc-cab"><tr>' +
+        '<td><small>FORNECEDOR</small><br><b>'+esc(p.fornecedor||'—')+'</b>'+(p.contato?'<br>'+esc(p.contato):'')+'</td>' +
+        '<td><small>ENTREGAR EM</small><br><b>'+esc(p.base||'—')+'</b></td>' +
+        '<td><small>ENTREGA COMBINADA</small><br><b>'+(p.dtEntrega?brDeISO(p.dtEntrega):'a combinar')+'</b></td>' +
+      '</tr></table>' +
+      '<table class="doc-itens"><thead><tr><th>#</th><th>Ferramenta</th><th>Un</th>' +
+        '<th class="num">Qtd</th><th class="num">Vlr unit.</th><th class="num">Total</th></tr></thead><tbody>' +
+      p.itens.map((i,n)=>'<tr><td>'+(n+1)+'</td><td>'+esc(i.nome)+'</td><td>'+esc(i.un||'UN')+'</td>' +
+        '<td class="num">'+fmtN(i.qtd,0)+'</td><td class="num">'+fmtR$(i.preco)+'</td>' +
+        '<td class="num">'+fmtR$((i.qtd||0)*(i.preco||0))+'</td></tr>').join('') +
+      '</tbody><tfoot><tr><td colspan="5" class="num">TOTAL DO PEDIDO</td>' +
+        '<td class="num"><b>'+fmtR$(totalPedido(p))+'</b></td></tr></tfoot></table>' +
+      (p.obs ? '<div class="doc-obs"><small>OBSERVAÇÕES</small><br>'+esc(p.obs)+'</div>' : '') +
+      '<div class="doc-ass"><div>_____________________________<br><small>Solicitante — Vammo</small></div>' +
+        '<div>_____________________________<br><small>Fornecedor — ciente</small></div></div>' +
+    '</div>';
+  document.body.classList.add('imprimindo-doc');
+  const limpa = () => { document.body.classList.remove('imprimindo-doc'); window.removeEventListener('afterprint', limpa); };
+  window.addEventListener('afterprint', limpa);
+  window.print();
+  setTimeout(limpa, 1500);
+}
+
 /* ==================================================================
    BACKUP, NAVEGAÇÃO E PARTIDA
    ================================================================== */
@@ -1212,7 +1720,9 @@ function importar(inp){
         (d.catalogo||[]).length + ' ferramentas, ' + (d.notas||[]).length + ' notas, ' +
         (d.listas||[]).length + ' listas.')) return;
       BD = {catalogo: d.catalogo||[], notas: d.notas||[], listas: d.listas||[],
-            cfg: Object.assign({criterio:'ultimo', listaAtual:null}, d.cfg||{})};
+            pedidos: d.pedidos||[],
+            cfg: Object.assign({criterio:'ultimo', listaAtual:null, pedidoAberto:null}, d.cfg||{})};
+      migraParaPedidos();
       salva(); pintaTudo(); aviso('Backup restaurado.');
     }catch(e){ aviso('Não deu para ler o arquivo: ' + e.message, 5000); }
   };
@@ -1226,10 +1736,10 @@ function ligaNav(){
     b.classList.add('on');
     document.getElementById('tela-' + b.dataset.tela).classList.add('on');
     if(b.dataset.tela==='catalogo') pintaCatalogo();
-    if(b.dataset.tela==='compra') pintaCompra();
+    if(b.dataset.tela==='pedidos') pintaPedidos();
   });
 }
-function pintaTudo(){ pintaNotas(); pintaCatalogo(); pintaCompra(); }
+function pintaTudo(){ pintaNotas(); pintaCatalogo(); pintaPedidos(); }
 
 document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
