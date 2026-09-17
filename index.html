@@ -53,6 +53,8 @@ button.mini{padding:4px 9px;font-size:12px}
 input,select,textarea{background:#0d1317;color:var(--txt);border:1px solid var(--linha);border-radius:7px;
                       padding:8px 10px;font-size:13px;font-family:inherit;width:100%}
 input:focus,select:focus,textarea:focus{outline:0;border-color:var(--ciano)}
+input.data{cursor:pointer}
+input.data::-webkit-calendar-picker-indicator{cursor:pointer;filter:invert(.7);opacity:.9}
 label.campo{display:block;font-size:11.5px;color:var(--txt2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
 /* ---------- tabela ---------- */
 .tabwrap{overflow-x:auto;border:1px solid var(--linha);border-radius:8px}
@@ -591,6 +593,19 @@ function carrega(){
     }
   }catch(e){ aviso('Não consegui ler os dados salvos: ' + e.message); }
   migraParaPedidos();
+  limpaDatasEstranhas();
+}
+/* data com ano fora do mundo (o bug do campo que se redesenhava no meio da digitação) */
+function limpaDatasEstranhas(){
+  let n = 0;
+  for(const p of (BD.pedidos||[]))
+    for(const c of ['dtSolicitado','dtEntrega','dtRecebido','dtPago']){
+      const v = p[c];
+      if(!v) continue;
+      const ano = +String(v).slice(0,4);
+      if(!(ano >= 2000 && ano <= 2100)){ p[c] = ''; n++; }
+    }
+  if(n){ salva(); setTimeout(()=>aviso(n + ' data(s) inválida(s) foram limpas — preencha de novo.'), 800); }
 }
 function salva(){
   try{ localStorage.setItem(CHAVE_LS, JSON.stringify(BD)); }
@@ -1771,7 +1786,8 @@ function csvPedido(pid){
   }
   linhas.push(['','','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
   const csv = '﻿' + linhas.map(l => l.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
-  baixar(new Blob([csv], {type:'text/csv;charset=utf-8'}), p.numero.toLowerCase() + '.csv');
+  baixar(new Blob([csv], {type:'text/csv;charset=utf-8'}),
+         nomeArquivoPedido(p).toLowerCase().replace(/\s+/g,'-') + '.csv');
 }
 
 /* ---------- tela: lista de pedidos ou o pedido aberto ---------- */
@@ -1947,9 +1963,24 @@ function htmlPedido(p){
 }
 
 function campo(rot, tipo, pid, chave, valor){
-  const t = tipo === 'data' ? 'date' : 'text';
+  if(tipo !== 'data')
+    return '<div><label class="campo">'+esc(rot)+'</label>' +
+      '<input value="'+esc(valor||'')+'" onchange="edPedido(\''+pid+'\',\''+chave+'\',this.value)"></div>';
+  // data: clicar em qualquer ponto abre o calendário. A tela NÃO se redesenha aqui —
+  // redesenhar enquanto você digita atropela o ano (virava 0003)
   return '<div><label class="campo">'+esc(rot)+'</label>' +
-    '<input type="'+t+'" value="'+esc(valor||'')+'" onchange="edPedido(\''+pid+'\',\''+chave+'\',this.value)"></div>';
+    '<input type="date" class="data" value="'+esc(valor||'')+'" ' +
+      'onclick="try{this.showPicker()}catch(e){}" ' +
+      'onchange="edData(\''+pid+'\',\''+chave+'\',this.value)"></div>';
+}
+/* guarda a data só quando ela faz sentido: enquanto o ano está pela metade
+   (0002, 0020...) o navegador já dispara a mudança */
+function edData(pid, chave, val){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  if(val === ''){ p[chave] = ''; salva(); return; }
+  const ano = +String(val).slice(0,4);
+  if(!(ano >= 2000 && ano <= 2100)) return;    // ainda digitando
+  p[chave] = val; salva();
 }
 function edPedido(pid, chave, val){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
@@ -2281,6 +2312,15 @@ function lancaNFnoCatalogo(pid){
 }
 
 /* ---------- documento A4 para mandar ao fornecedor ---------- */
+/* O Chrome usa o título da página como nome do arquivo em "Salvar como PDF" — então
+   trocamos o título na hora de imprimir e devolvemos depois. */
+function nomeArquivoPedido(p){
+  const base = (nomeBase(p) || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')   // tira acento, mantém maiúsc/minúsc
+    .replace(/[^A-Za-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+  return (p.numero + (base ? ' - ' + base : '')).trim();
+}
+
 function imprimePedido(pid){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
   if(!p.itens.length){ aviso('O pedido está sem itens.'); return; }
@@ -2325,7 +2365,13 @@ function imprimePedido(pid){
         '<div>_____________________________<br><small>Fornecedor — ciente</small></div></div>' +
     '</div>';
   document.body.classList.add('imprimindo-doc');
-  const limpa = () => { document.body.classList.remove('imprimindo-doc'); window.removeEventListener('afterprint', limpa); };
+  const tituloAntes = document.title;
+  document.title = nomeArquivoPedido(p);       // vira o nome do PDF salvo
+  const limpa = () => {
+    document.body.classList.remove('imprimindo-doc');
+    document.title = tituloAntes;
+    window.removeEventListener('afterprint', limpa);
+  };
   window.addEventListener('afterprint', limpa);
   window.print();
   setTimeout(limpa, 1500);
@@ -2448,7 +2494,7 @@ document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
 });
 
-const APP_VERSAO = 'v12 · 17/09/2026';
+const APP_VERSAO = 'v14 · 17/09/2026';
 carrega();
 semeiaSePrecisar();
 (function mostraVersao(){

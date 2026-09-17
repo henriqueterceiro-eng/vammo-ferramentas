@@ -48,8 +48,11 @@ a lista fica em `FORNECEDORES_PADRAO`, no começo do bloco de pedidos.
 (`mechanics_r.location`): **SBC, Osasco, Mooca e São Mateus**, mais *Nova base / outro
 destino*, que abre um campo livre — é o caso de comprar ferramental para uma base que
 ainda vai abrir. Fornecedor e base viraram obrigatórios para o pedido sair do rascunho.
+- **Datas**: clique no campo e o calendário abre. Dá para digitar também — e uma data com
+  ano impossível (o campo antigo estragava o ano enquanto você digitava) é recusada.
 - **Mandar para o fornecedor**: **PDF A4** (documento com logo, CNPJ e assinatura),
-  **WhatsApp** (copia o pedido em texto) ou **CSV**.
+  **WhatsApp** (copia o pedido em texto) ou **CSV**. O arquivo sai nomeado com o pedido e a
+  base — `PED-2026-001 - Sao Mateus`.
 - **Duplicar**: o pedido de uma base vira o da próxima com as mesmas ferramentas.
 - **Preço usado**: último preço pago (padrão), médio ou menor — ajustável no Catálogo.
   Ao sair do rascunho o preço **congela**: vira o valor negociado e não segue mais o catálogo.
