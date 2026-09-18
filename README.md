@@ -53,6 +53,11 @@ ainda vai abrir. Fornecedor e base viraram obrigatórios para o pedido sair do r
 - **Mandar para o fornecedor**: **PDF A4** (documento com logo, CNPJ e assinatura),
   **WhatsApp** (copia o pedido em texto) ou **CSV**. O arquivo sai nomeado com o pedido e a
   base — `PED-2026-001 - Sao Mateus`.
+- **Com ou sem valores**: antes de gerar, o app pergunta. *Com valores* é o pedido fechado.
+  *Sem valores* é **cotação**: o documento sai com as colunas de preço **em branco** para o
+  fornecedor preencher, o texto de WhatsApp não mostra nenhum R$ e pede o valor unitário e o
+  prazo, e o arquivo ganha o sufixo `- cotacao`. Assim dá para cotar com mais de um
+  fornecedor sem ancorar o preço.
 - **Duplicar**: o pedido de uma base vira o da próxima com as mesmas ferramentas.
 - **Preço usado**: último preço pago (padrão), médio ou menor — ajustável no Catálogo.
   Ao sair do rascunho o preço **congela**: vira o valor negociado e não segue mais o catálogo.

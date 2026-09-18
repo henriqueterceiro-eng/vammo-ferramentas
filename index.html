@@ -156,6 +156,7 @@ table.doc-itens th{background:#eef4f7;border:1px solid #ccc;padding:6px;text-ali
 table.doc-itens td{border:1px solid #ddd;padding:5px 6px}
 table.doc-itens tfoot td{border:0;padding-top:9px;font-size:13px}
 table.doc-itens tr.doc-kit td{background:#eef4f7}
+.doc-cot{margin-top:12px;border:1px dashed #999;padding:8px 10px;font-size:11.5px;background:#f7fafc}
 .doc .num{text-align:right}
 .doc-obs{margin-top:12px;border:1px solid #ccc;padding:8px 10px;font-size:11.5px}
 .doc-ass{display:flex;gap:40px;justify-content:space-between;margin-top:30px;text-align:center;font-size:10px;color:#444}
@@ -1743,9 +1744,31 @@ function itensParaExportar(p){
   return saida;
 }
 
-function textoWhatsApp(p){
+/* Mandar com preço é dar a âncora para o fornecedor. Antes de sair, perguntamos. */
+function perguntaValores(pid, comoEnvia){
+  const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
+  const quem = {pdf:'PDF A4', zap:'texto de WhatsApp', csv:'CSV'}[comoEnvia] || comoEnvia;
+  janela('<h3>Enviar ' + quem + ' — com ou sem valores?</h3>' +
+    '<p style="color:var(--txt2);font-size:13px;margin-top:0">Pedido <b>' + esc(p.numero) + '</b>' +
+      (p.fornecedor ? ' · ' + esc(p.fornecedor) : '') + ' · ' + fmtR$(totalPedido(p)) + '</p>' +
+    '<div class="grade2" style="margin-top:14px">' +
+      '<button class="primario" style="padding:16px;text-align:left" onclick="fechaJanela();envia(\'' + pid + '\',\'' + comoEnvia + '\',true)">' +
+        '<b>Com valores</b><br><span style="font-weight:400;font-size:12px">pedido fechado: preço combinado e total</span></button>' +
+      '<button style="padding:16px;text-align:left" onclick="fechaJanela();envia(\'' + pid + '\',\'' + comoEnvia + '\',false)">' +
+        '<b>Sem valores — para cotar</b><br><span style="font-size:12px;color:var(--txt2)">só ferramenta e quantidade; o fornecedor preenche o preço</span></button>' +
+    '</div>' +
+    '<div class="linha" style="margin-top:14px"><button class="mini" onclick="fechaJanela()">cancelar</button></div>');
+}
+function envia(pid, comoEnvia, comValor){
+  if(comoEnvia === 'pdf') imprimePedido(pid, comValor);
+  else if(comoEnvia === 'zap') copiaWhatsApp(pid, comValor);
+  else csvPedido(pid, comValor);
+}
+
+function textoWhatsApp(p, comValor){
+  comValor = comValor !== false;
   const L = [];
-  L.push('*PEDIDO ' + p.numero + ' — ' + VAMMO.razao + '*');
+  L.push('*' + (comValor ? 'PEDIDO ' : 'COTAÇÃO — PEDIDO ') + p.numero + ' — ' + VAMMO.razao + '*');
   if(p.fornecedor) L.push('Fornecedor: ' + p.fornecedor);
   if(nomeBase(p)) L.push('Entrega: ' + nomeBase(p));
   L.push('');
@@ -1754,24 +1777,25 @@ function textoWhatsApp(p){
     if(l.tipo === 'kit'){
       L.push('');
       L.push('*🧰 ' + l.nome + (l.vezes>1 ? ' x'+fmtN(l.vezes,0) : '') +
-             ' — ' + l.qtdItens + ' ferramentas — ' + fmtR$(l.total) + '*');
+             ' — ' + l.qtdItens + ' ferramentas' + (comValor ? ' — ' + fmtR$(l.total) : '') + '*');
       continue;
     }
     const i = l.i;
     L.push(++n + ') ' + i.nome + ' — ' + fmtN(i.qtd,0) + ' ' + (i.un||'UN') +
-      (i.preco ? ' x ' + fmtR$(i.preco) + ' = ' + fmtR$(i.qtd*i.preco) : ''));
+      (comValor && i.preco ? ' x ' + fmtR$(i.preco) + ' = ' + fmtR$(i.qtd*i.preco) : ''));
   }
   L.push('');
-  L.push('*Total: ' + fmtR$(totalPedido(p)) + '*');
+  if(comValor) L.push('*Total: ' + fmtR$(totalPedido(p)) + '*');
+  else L.push('*Por favor, informe o valor unitário de cada item e o prazo de entrega.*');
   if(p.dtEntrega) L.push('Entrega combinada: ' + brDeISO(p.dtEntrega));
   if(p.obs) L.push('Obs.: ' + p.obs);
   L.push('');
   L.push('CNPJ ' + VAMMO.cnpj);
   return L.join('\n');
 }
-function copiaWhatsApp(pid){
+function copiaWhatsApp(pid, comValor){
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
-  const txt = textoWhatsApp(p);
+  const txt = textoWhatsApp(p, comValor);
   const feito = () => aviso('Pedido copiado — cole na conversa com o fornecedor.');
   if(navigator.clipboard && window.isSecureContext){
     navigator.clipboard.writeText(txt).then(feito, () => caiNoTextarea(txt, feito));
@@ -1786,19 +1810,22 @@ function caiNoTextarea(txt, feito){
     '</textarea><div class="linha" style="margin-top:12px"><button onclick="fechaJanela()">Fechar</button></div>'); }
   t.remove();
 }
-function csvPedido(pid){
+function csvPedido(pid, comValor){
+  comValor = comValor !== false;
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
   const linhas = [['Pedido','Fornecedor','Entrega','Kit','Ferramenta','Unidade','Quantidade','Valor unitario','Total']];
   for(const l of itensParaExportar(p)){
     if(l.tipo === 'kit') continue;           // o kit vira a coluna "Kit" de cada ferramenta
     const i = l.i;
     linhas.push([p.numero, p.fornecedor, nomeBase(p), l.kit, i.nome, i.un||'UN', i.qtd,
-                 (i.preco||0).toFixed(2).replace('.',','), ((i.qtd||0)*(i.preco||0)).toFixed(2).replace('.',',')]);
+                 comValor ? (i.preco||0).toFixed(2).replace('.',',') : '',
+                 comValor ? ((i.qtd||0)*(i.preco||0)).toFixed(2).replace('.',',') : '']);
   }
-  linhas.push(['','','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
+  if(comValor) linhas.push(['','','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
   const csv = '﻿' + linhas.map(l => l.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   baixar(new Blob([csv], {type:'text/csv;charset=utf-8'}),
-         nomeArquivoPedido(p).toLowerCase().replace(/\s+/g,'-') + '.csv');
+         (nomeArquivoPedido(p) + (comValor ? '' : ' - cotacao'))
+           .toLowerCase().replace(/\s*-\s*/g,'-').replace(/\s+/g,'-') + '.csv');
 }
 
 /* ---------- tela: lista de pedidos ou o pedido aberto ---------- */
@@ -1897,9 +1924,9 @@ function htmlPedido(p){
       '<button class="mini" onclick="fechaPedido()">← Pedidos</button>' +
       '<h2 style="margin:0 0 0 6px">'+esc(p.numero)+'</h2>' + chipStatus(p.status) +
       '<div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">' +
-        '<button class="mini" onclick="imprimePedido(\''+p.id+'\')">🖨 PDF A4</button>' +
-        '<button class="mini" onclick="copiaWhatsApp(\''+p.id+'\')">💬 WhatsApp</button>' +
-        '<button class="mini" onclick="csvPedido(\''+p.id+'\')">⬇ CSV</button>' +
+        '<button class="mini" onclick="perguntaValores(\''+p.id+'\',\'pdf\')">🖨 PDF A4</button>' +
+        '<button class="mini" onclick="perguntaValores(\''+p.id+'\',\'zap\')">💬 WhatsApp</button>' +
+        '<button class="mini" onclick="perguntaValores(\''+p.id+'\',\'csv\')">⬇ CSV</button>' +
         '<button class="mini" onclick="duplicaPedido(\''+p.id+'\')">Duplicar</button>' +
         '<button class="mini perigo" onclick="apagaPedido(\''+p.id+'\')">Excluir</button>' +
       '</div>' +
@@ -2331,7 +2358,8 @@ function nomeArquivoPedido(p){
   return (p.numero + (base ? ' - ' + base : '')).trim();
 }
 
-function imprimePedido(pid){
+function imprimePedido(pid, comValor){
+  comValor = comValor !== false;
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
   if(!p.itens.length){ aviso('O pedido está sem itens.'); return; }
   const logo = (document.getElementById('logo')||{}).src || '';
@@ -2340,7 +2368,7 @@ function imprimePedido(pid){
       '<div class="doc-topo">' +
         (logo ? '<img src="'+logo+'" alt="Vammo">' : '') +
         '<div class="doc-emp"><b>'+esc(VAMMO.razao)+'</b><br>CNPJ '+esc(VAMMO.cnpj)+'<br>'+esc(VAMMO.endereco)+'</div>' +
-        '<div class="doc-num">PEDIDO<br><b>'+esc(p.numero)+'</b><br><small>'+brDeISO(p.dtSolicitado||hojeISO())+'</small></div>' +
+        '<div class="doc-num">'+(comValor?'PEDIDO':'COTAÇÃO')+'<br><b>'+esc(p.numero)+'</b><br><small>'+brDeISO(p.dtSolicitado||hojeISO())+'</small></div>' +
       '</div>' +
       '<table class="doc-cab"><tr>' +
         (function(){
@@ -2354,29 +2382,36 @@ function imprimePedido(pid){
       '</tr></table>' +
       '<table class="doc-itens"><thead><tr><th>#</th><th>Ferramenta</th><th>Un</th>' +
         '<th class="num">Qtd</th><th class="num">Vlr unit.</th><th class="num">Total</th></tr></thead><tbody>' +
+      (comValor ? '' : '') +
       (function(){
         let n = 0;
         return itensParaExportar(p).map(l => {
           if(l.tipo === 'kit')
             return '<tr class="doc-kit"><td></td><td colspan="4"><b>KIT ' + esc(l.nome) +
                    (l.vezes>1 ? ' × ' + fmtN(l.vezes,0) : '') + '</b> — ' + l.qtdItens +
-                   ' ferramentas</td><td class="num"><b>' + fmtR$(l.total) + '</b></td></tr>';
+                   ' ferramentas</td><td class="num">' +
+                   (comValor ? '<b>' + fmtR$(l.total) + '</b>' : '') + '</td></tr>';
           const i = l.i;
           return '<tr><td>'+(++n)+'</td><td>'+(l.kit?'&nbsp;&nbsp;':'')+esc(i.nome)+'</td>' +
             '<td>'+esc(i.un||'UN')+'</td><td class="num">'+fmtN(i.qtd,0)+'</td>' +
-            '<td class="num">'+fmtR$(i.preco)+'</td>' +
-            '<td class="num">'+fmtR$((i.qtd||0)*(i.preco||0))+'</td></tr>';
+            '<td class="num">'+(comValor ? fmtR$(i.preco) : '')+'</td>' +
+            '<td class="num">'+(comValor ? fmtR$((i.qtd||0)*(i.preco||0)) : '')+'</td></tr>';
         }).join('');
       })() +
-      '</tbody><tfoot><tr><td colspan="5" class="num">TOTAL DO PEDIDO</td>' +
-        '<td class="num"><b>'+fmtR$(totalPedido(p))+'</b></td></tr></tfoot></table>' +
+      '</tbody><tfoot><tr><td colspan="5" class="num">' +
+        (comValor ? 'TOTAL DO PEDIDO' : 'TOTAL DA COTAÇÃO') + '</td>' +
+        '<td class="num"><b>'+(comValor ? fmtR$(totalPedido(p)) : '')+'</b></td></tr></tfoot></table>' +
+      (comValor ? '' :
+        '<div class="doc-cot">Documento de <b>cotação</b>: por favor preencha o valor unitário de ' +
+        'cada item, o total e o prazo de entrega, e devolva assinado.</div>') +
       (p.obs ? '<div class="doc-obs"><small>OBSERVAÇÕES</small><br>'+esc(p.obs)+'</div>' : '') +
       '<div class="doc-ass"><div>_____________________________<br><small>Solicitante — Vammo</small></div>' +
-        '<div>_____________________________<br><small>Fornecedor — ciente</small></div></div>' +
+        '<div>_____________________________<br><small>' +
+          (comValor ? 'Fornecedor — ciente' : 'Fornecedor — proposta e prazo') + '</small></div></div>' +
     '</div>';
   document.body.classList.add('imprimindo-doc');
   const tituloAntes = document.title;
-  document.title = nomeArquivoPedido(p);       // vira o nome do PDF salvo
+  document.title = nomeArquivoPedido(p) + (comValor ? '' : ' - cotacao');   // nome do PDF salvo
   const limpa = () => {
     document.body.classList.remove('imprimindo-doc');
     document.title = tituloAntes;
@@ -2504,7 +2539,7 @@ document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
 });
 
-const APP_VERSAO = 'v15 · 17/09/2026';
+const APP_VERSAO = 'v16 · 18/09/2026';
 carrega();
 semeiaSePrecisar();
 (function mostraVersao(){
