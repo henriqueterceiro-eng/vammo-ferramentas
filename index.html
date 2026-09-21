@@ -191,6 +191,7 @@ table.doc-itens tr.doc-kit td{background:#eef4f7}
   <div class="dir naoimprime">
     <button class="mini" onclick="exportar()" title="Baixa um .json com tudo">⬇ Backup</button>
     <button class="mini" onclick="document.getElementById('imp').click()">⬆ Restaurar</button>
+    <button class="mini" onclick="telaRecuperar()" title="versões anteriores guardadas neste navegador">⟲ Recuperar</button>
     <input type="file" id="imp" accept="application/json" hidden onchange="importar(this)">
   </div>
 </header>
@@ -582,6 +583,9 @@ const CHAVE_LS = 'vammo_ferramentas_v1';
 let BD = {catalogo:[], notas:[], listas:[], pedidos:[], kits:[], fornecedores:[],
           cfg:{criterio:'ultimo', listaAtual:null, pedidoAberto:null}};
 
+/* Se a leitura falhar, o app fica com a memória vazia — e qualquer gravação seguinte
+   apagaria o que estava salvo. Nesse caso a escrita é travada até você decidir. */
+let LEITURA_OK = true;
 function carrega(){
   try{
     const cru = localStorage.getItem(CHAVE_LS);
@@ -592,7 +596,12 @@ function carrega(){
       if(!Array.isArray(BD.pedidos)) BD.pedidos = [];
       if(!Array.isArray(BD.kits)) BD.kits = [];
     }
-  }catch(e){ aviso('Não consegui ler os dados salvos: ' + e.message); }
+  }catch(e){
+    LEITURA_OK = false;
+    aviso('Não consegui ler os dados salvos e por isso NÃO vou gravar nada por cima. ' +
+          'Abra ⟲ Recuperar. (' + e.message + ')', 12000);
+    return;
+  }
   migraParaPedidos();
   limpaDatasEstranhas();
 }
@@ -608,9 +617,32 @@ function limpaDatasEstranhas(){
     }
   if(n){ salva(); setTimeout(()=>aviso(n + ' data(s) inválida(s) foram limpas — preencha de novo.'), 800); }
 }
+const CHAVE_BKP = CHAVE_LS + '_bkp';      // versões anteriores, para recuperar
 function salva(){
-  try{ localStorage.setItem(CHAVE_LS, JSON.stringify(BD)); }
-  catch(e){ aviso('Não consegui salvar (memória do navegador cheia?): ' + e.message); }
+  if(!LEITURA_OK){
+    aviso('Gravação bloqueada: os dados salvos não puderam ser lidos. Abra ⟲ Recuperar.', 8000);
+    return;
+  }
+  try{
+    const anterior = localStorage.getItem(CHAVE_LS);
+    const novo = JSON.stringify(BD);
+    if(anterior && anterior !== novo) guardaCopia(anterior);
+    localStorage.setItem(CHAVE_LS, novo);
+  }catch(e){ aviso('Não consegui salvar (memória do navegador cheia?): ' + e.message, 8000); }
+}
+/* três gerações da versão anterior, para desfazer um estrago */
+function guardaCopia(texto){
+  try{
+    const copias = JSON.parse(localStorage.getItem(CHAVE_BKP) || '[]');
+    let resumo = {};
+    try{
+      const d = JSON.parse(texto);
+      resumo = {pedidos:(d.pedidos||[]).length, catalogo:(d.catalogo||[]).length,
+                notas:(d.notas||[]).length, kits:(d.kits||[]).length};
+    }catch(e){}
+    copias.unshift({quando: new Date().toISOString(), resumo, dados: texto});
+    localStorage.setItem(CHAVE_BKP, JSON.stringify(copias.slice(0,3)));
+  }catch(e){ /* a cópia é um extra: se não couber, o principal já foi gravado */ }
 }
 const id = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
@@ -2431,6 +2463,54 @@ function baixar(blob, nome){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
+/* Versões anteriores guardadas automaticamente neste navegador. */
+function telaRecuperar(){
+  let copias = [];
+  try{ copias = JSON.parse(localStorage.getItem(CHAVE_BKP) || '[]'); }catch(e){}
+  const n = o => (o || []).length;
+  janela('<h3>⟲ Recuperar uma versão anterior</h3>' +
+    '<p style="color:var(--txt2);font-size:12.5px;margin-top:0">Antes de cada gravação o app ' +
+      'guarda a versão anterior — as três últimas ficam aqui, neste navegador.</p>' +
+    '<div class="aviso ok" style="margin-bottom:12px"><b>Agora:</b> ' + n(BD.pedidos) + ' pedidos · ' +
+      n(BD.catalogo) + ' ferramentas · ' + n(BD.notas) + ' notas · ' + n(BD.kits) + ' kits</div>' +
+    (copias.length ?
+      '<div class="tabwrap"><table><thead><tr><th>Versão de</th><th class="num">Pedidos</th>' +
+        '<th class="num">Ferramentas</th><th class="num">Notas</th><th></th></tr></thead><tbody>' +
+      copias.map(function(c, i){
+        const r = c.resumo || {};
+        return '<tr><td>' + new Date(c.quando).toLocaleString('pt-BR') + '</td>' +
+          '<td class="num"><b>' + (r.pedidos === undefined ? '?' : r.pedidos) + '</b></td>' +
+          '<td class="num">' + (r.catalogo === undefined ? '?' : r.catalogo) + '</td>' +
+          '<td class="num">' + (r.notas === undefined ? '?' : r.notas) + '</td>' +
+          '<td class="num"><button class="mini" onclick="voltaPara(' + i + ')">usar esta</button></td></tr>';
+      }).join('') + '</tbody></table></div>'
+      : '<div class="vazio">Nenhuma cópia guardada ainda neste navegador.</div>') +
+    '<div class="linha" style="margin-top:14px"><button onclick="fechaJanela()">Fechar</button>' +
+      '<button class="mini" style="margin-left:auto" onclick="exportar()">⬇ Baixar backup do estado atual</button></div>');
+}
+function voltaPara(i){
+  let copias = [];
+  try{ copias = JSON.parse(localStorage.getItem(CHAVE_BKP) || '[]'); }catch(e){}
+  const c = copias[i];
+  if(!c){ aviso('Cópia não encontrada.'); return; }
+  const r = c.resumo || {};
+  if(!confirm('Voltar para a versão de ' + new Date(c.quando).toLocaleString('pt-BR') + '?\n' +
+              (r.pedidos === undefined ? '?' : r.pedidos) + ' pedidos, ' +
+              (r.catalogo === undefined ? '?' : r.catalogo) + ' ferramentas.\n' +
+              'O estado de agora vira uma cópia, então dá para voltar atrás.')) return;
+  try{
+    const atual = localStorage.getItem(CHAVE_LS);
+    if(atual) guardaCopia(atual);
+    const d = JSON.parse(c.dados);
+    BD = Object.assign({catalogo:[], notas:[], listas:[], pedidos:[], kits:[], fornecedores:[],
+                        cfg:{criterio:'ultimo', listaAtual:null, pedidoAberto:null}}, d);
+    LEITURA_OK = true;
+    localStorage.setItem(CHAVE_LS, JSON.stringify(BD));
+    fechaJanela(); pintaTudo();
+    aviso('Versão restaurada: ' + BD.pedidos.length + ' pedidos, ' + BD.catalogo.length + ' ferramentas.');
+  }catch(e){ aviso('Não consegui restaurar: ' + e.message, 8000); }
+}
+
 function exportar(){
   const pacote = Object.assign({}, BD, {_versao:1, _gerado: new Date().toISOString()});
   baixar(new Blob([JSON.stringify(pacote, null, 1)], {type:'application/json'}),
@@ -2539,7 +2619,16 @@ document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
 });
 
-const APP_VERSAO = 'v16 · 18/09/2026';
+const APP_VERSAO = 'v17 · 21/09/2026';
+/* Duas abas do app gravam no mesmo lugar: a última a salvar apaga o que a outra fez. */
+window.addEventListener('storage', function(e){
+  if(e.key !== CHAVE_LS) return;
+  let fora = {};
+  try{ fora = JSON.parse(e.newValue || '{}'); }catch(err){}
+  aviso('⚠ Outra aba do app acabou de gravar (' + (fora.pedidos||[]).length + ' pedidos lá, ' +
+        (BD.pedidos||[]).length + ' aqui). Use uma aba só; recarregue esta para ver o que vale.', 12000);
+});
+
 carrega();
 semeiaSePrecisar();
 (function mostraVersao(){
