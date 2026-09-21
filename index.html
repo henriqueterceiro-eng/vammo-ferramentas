@@ -580,7 +580,7 @@ async function lePDF(file){
    Use Backup/Restaurar para levar para outro computador.
    ================================================================== */
 const CHAVE_LS = 'vammo_ferramentas_v1';
-let BD = {catalogo:[], notas:[], listas:[], pedidos:[], kits:[], fornecedores:[],
+let BD = {catalogo:[], notas:[], listas:[], pedidos:[], kits:[], fornecedores:[], bases:[],
           cfg:{criterio:'ultimo', listaAtual:null, pedidoAberto:null}};
 
 /* Se a leitura falhar, o app fica com a memória vazia — e qualquer gravação seguinte
@@ -1489,14 +1489,29 @@ function garanteFornecedores(){
 /* Bases da Vammo conforme o cadastro de oficinas (mechanics_r.location).
    "Nova base" fica no fim porque comprar ferramental é justamente o que se faz
    quando a base ainda não existe. */
-const BASES = [
-  {id:'sbc',        nome:'SBC',         locId:1},
-  {id:'osasco',     nome:'Osasco',      locId:2},
-  {id:'mooca',      nome:'Mooca',       locId:3},
-  {id:'sao_mateus', nome:'São Mateus',  locId:71},
-  {id:'outra',      nome:'Nova base / outro destino', livre:true},
+const BASES_PADRAO = [
+  {id:'sbc',        nome:'SBC',         locId:1,  endereco:'Av. Faria Lima, 820 — São Bernardo do Campo/SP'},
+  {id:'osasco',     nome:'Osasco',      locId:2,  endereco:''},
+  {id:'mooca',      nome:'Mooca',       locId:3,  endereco:''},
+  {id:'sao_mateus', nome:'São Mateus',  locId:71, endereco:''},
+  {id:'outra',      nome:'Nova base / outro destino', livre:true, endereco:''},
 ];
-const base = bid => BASES.find(b => b.id === bid) || null;
+function garanteBases(){
+  if(!Array.isArray(BD.bases) || !BD.bases.length)
+    BD.bases = JSON.parse(JSON.stringify(BASES_PADRAO));
+  // base nova que eu publicar depois entra sem apagar o que você editou
+  for(const padrao of BASES_PADRAO){
+    const b = BD.bases.find(x => x.id === padrao.id);
+    if(!b) BD.bases.push(JSON.parse(JSON.stringify(padrao)));
+    else if(!b.endereco && padrao.endereco) b.endereco = padrao.endereco;
+  }
+  return BD.bases;
+}
+const base = bid => (BD.bases || BASES_PADRAO).find(b => b.id === bid) || null;
+const enderecoBase = q => {
+  const b = base(q.baseId);
+  return b ? (b.livre ? (q.enderecoLivre || '') : (b.endereco || '')) : '';
+};
 function nomeBase(q){
   const b = base(q.baseId);
   if(!b) return q.base || '';
@@ -1522,6 +1537,7 @@ function proxNumero(){
 function migraParaPedidos(){
   if(!BD.pedidos) BD.pedidos = [];
   garanteFornecedores();
+  garanteBases();
   for(const q of BD.pedidos){
     if(q.fornecedorId) continue;
     const alvo = BD.fornecedores.find(f =>
@@ -1802,7 +1818,8 @@ function textoWhatsApp(p, comValor){
   const L = [];
   L.push('*' + (comValor ? 'PEDIDO ' : 'COTAÇÃO — PEDIDO ') + p.numero + ' — ' + VAMMO.razao + '*');
   if(p.fornecedor) L.push('Fornecedor: ' + p.fornecedor);
-  if(nomeBase(p)) L.push('Entrega: ' + nomeBase(p));
+  if(nomeBase(p)) L.push('Entrega: ' + nomeBase(p) +
+    (enderecoBase(p) ? ' — ' + enderecoBase(p) : ''));
   L.push('');
   let n = 0;
   for(const l of itensParaExportar(p)){
@@ -1845,15 +1862,15 @@ function caiNoTextarea(txt, feito){
 function csvPedido(pid, comValor){
   comValor = comValor !== false;
   const p = BD.pedidos.find(x=>x.id===pid); if(!p) return;
-  const linhas = [['Pedido','Fornecedor','Entrega','Kit','Ferramenta','Unidade','Quantidade','Valor unitario','Total']];
+  const linhas = [['Pedido','Fornecedor','Entrega','Endereco de entrega','Kit','Ferramenta','Unidade','Quantidade','Valor unitario','Total']];
   for(const l of itensParaExportar(p)){
     if(l.tipo === 'kit') continue;           // o kit vira a coluna "Kit" de cada ferramenta
     const i = l.i;
-    linhas.push([p.numero, p.fornecedor, nomeBase(p), l.kit, i.nome, i.un||'UN', i.qtd,
+    linhas.push([p.numero, p.fornecedor, nomeBase(p), enderecoBase(p), l.kit, i.nome, i.un||'UN', i.qtd,
                  comValor ? (i.preco||0).toFixed(2).replace('.',',') : '',
                  comValor ? ((i.qtd||0)*(i.preco||0)).toFixed(2).replace('.',',') : '']);
   }
-  if(comValor) linhas.push(['','','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
+  if(comValor) linhas.push(['','','','','','','','','TOTAL', totalPedido(p).toFixed(2).replace('.',',')]);
   const csv = '﻿' + linhas.map(l => l.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   baixar(new Blob([csv], {type:'text/csv;charset=utf-8'}),
          (nomeArquivoPedido(p) + (comValor ? '' : ' - cotacao'))
@@ -1920,7 +1937,8 @@ function htmlListaPedidos(){
     '<div class="card">' +
       '<div class="linha" style="margin-bottom:12px">' +
         '<h2 style="margin:0">Pedidos <span class="cont">'+(ps.length?'('+ps.length+')':'')+'</span></h2>' +
-        '<button class="primario" style="margin-left:auto" onclick="novoPedido()">+ Novo pedido</button>' +
+        '<button class="mini" style="margin-left:auto" onclick="telaBases()">📍 Endereços das bases</button>' +
+        '<button class="primario" onclick="novoPedido()">+ Novo pedido</button>' +
       '</div>' +
       (ps.length ?
       '<div class="tabwrap"><table><thead><tr>' +
@@ -1943,6 +1961,29 @@ function htmlListaPedidos(){
       }).join('') + '</tbody></table></div>'
       : '<div class="vazio">Nenhum pedido ainda. <b>+ Novo pedido</b> para montar o primeiro.</div>') +
     '</div>';
+}
+
+/* Endereço de entrega de cada base — é o que o fornecedor precisa para entregar. */
+function telaBases(){
+  garanteBases();
+  janela('<h3>Endereço de entrega das bases</h3>' +
+    '<p style="color:var(--txt2);font-size:12.5px;margin-top:0">Sai no pedido, na cotação e no ' +
+      'texto de WhatsApp, logo abaixo do nome da base.</p>' +
+    '<div class="tabwrap"><table><thead><tr><th style="width:150px">Base</th>' +
+      '<th>Endereço</th></tr></thead><tbody>' +
+    BD.bases.filter(b => !b.livre).map(b =>
+      '<tr><td><b>' + esc(b.nome) + '</b></td>' +
+      '<td><input value="' + esc(b.endereco||'') + '" placeholder="rua, número, bairro, cidade/UF, CEP" ' +
+        'onchange="edBase(\'' + b.id + '\', this.value)"></td></tr>').join('') +
+    '</tbody></table></div>' +
+    '<div class="linha" style="margin-top:14px"><button class="primario" onclick="fechaJanela();pintaPedidos()">Pronto</button></div>');
+}
+function edBase(bid, valor){
+  garanteBases();
+  const b = BD.bases.find(x => x.id === bid);
+  if(!b) return;
+  b.endereco = valor.trim();
+  salva();
 }
 
 function abrePedido(pid){ SEL = null; BD.cfg.pedidoAberto = pid; salva(); pintaPedidos(); window.scrollTo(0,0); }
@@ -1993,12 +2034,19 @@ function htmlPedido(p){
       '<div><label class="campo">Entregar em (base)</label>' +
         '<select onchange="edPedido(\'' + p.id + '\',\'baseId\',this.value)">' +
           '<option value="">— escolha a base —</option>' +
-          BASES.map(b => '<option value="'+b.id+'"'+(p.baseId===b.id?' selected':'')+'>'+
+          garanteBases().map(b => '<option value="'+b.id+'"'+(p.baseId===b.id?' selected':'')+'>'+
                          esc(b.nome)+'</option>').join('') +
         '</select>' +
         (base(p.baseId) && base(p.baseId).livre
-          ? '<input style="margin-top:6px" placeholder="nome ou endereço do destino" value="'+esc(p.base||'')+
-            '" onchange="edPedido(\''+p.id+'\',\'base\',this.value)">' : '') +
+          ? '<input style="margin-top:6px" placeholder="nome do destino" value="'+esc(p.base||'')+
+            '" onchange="edPedido(\''+p.id+'\',\'base\',this.value)">' +
+            '<input style="margin-top:6px" placeholder="endereço de entrega" value="'+esc(p.enderecoLivre||'')+
+            '" onchange="edPedido(\''+p.id+'\',\'enderecoLivre\',this.value)">'
+          : (p.baseId
+              ? '<div style="font-size:11px;color:' + (enderecoBase(p) ? 'var(--txt2)' : 'var(--alerta)') +
+                ';margin-top:4px">' + (enderecoBase(p) ? esc(enderecoBase(p)) : 'sem endereço cadastrado') +
+                ' <a href="#" onclick="telaBases();return false">editar</a></div>'
+              : '')) +
       '</div>' +
       campo('Enviado ao fornecedor em', 'data', p.id, 'dtSolicitado', p.dtSolicitado) +
       campo('Entrega combinada', 'data', p.id, 'dtEntrega', p.dtEntrega) +
@@ -2409,7 +2457,8 @@ function imprimePedido(pid, comValor){
                  (f ? '<br>CNPJ '+esc(f.cnpj)+(f.telefone?' · '+esc(f.telefone):'') : '') +
                  (p.contato ? '<br>'+esc(p.contato) : '') + '</td>';
         })() +
-        '<td><small>ENTREGAR EM</small><br><b>'+esc(nomeBase(p)||'—')+'</b></td>' +
+        '<td><small>ENTREGAR EM</small><br><b>'+esc(nomeBase(p)||'—')+'</b>' +
+          (enderecoBase(p) ? '<br>'+esc(enderecoBase(p)) : '') + '</td>' +
         '<td><small>ENTREGA COMBINADA</small><br><b>'+(p.dtEntrega?brDeISO(p.dtEntrega):'a combinar')+'</b></td>' +
       '</tr></table>' +
       '<table class="doc-itens"><thead><tr><th>#</th><th>Ferramenta</th><th>Un</th>' +
@@ -2529,6 +2578,7 @@ function importar(inp){
         (d.listas||[]).length + ' listas.')) return;
       BD = {catalogo: d.catalogo||[], notas: d.notas||[], listas: d.listas||[],
             pedidos: d.pedidos||[], kits: d.kits||[], fornecedores: d.fornecedores||[],
+            bases: d.bases||[],
             cfg: Object.assign({criterio:'ultimo', listaAtual:null, pedidoAberto:null}, d.cfg||{})};
       migraParaPedidos();
       salva(); pintaTudo(); aviso('Backup restaurado.');
@@ -2619,7 +2669,7 @@ document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
 });
 
-const APP_VERSAO = 'v17 · 21/09/2026';
+const APP_VERSAO = 'v18 · 21/09/2026';
 /* Duas abas do app gravam no mesmo lugar: a última a salvar apaga o que a outra fez. */
 window.addEventListener('storage', function(e){
   if(e.key !== CHAVE_LS) return;

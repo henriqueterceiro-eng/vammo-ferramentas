@@ -36,6 +36,16 @@ Abra o `index.html` no navegador (duplo clique já funciona) ou pela URL do GitH
   Na **exportação sai tudo aberto** — PDF, WhatsApp e CSV listam ferramenta por ferramenta,
   com o kit identificado.
 
+### Segurança dos dados
+
+Tudo vive no navegador, então o app se protege sozinho: **cada gravação guarda a versão
+anterior** (três gerações) e o botão **⟲ Recuperar** mostra data e quantidade de pedidos de
+cada uma, para voltar. Se os dados salvos não puderem ser lidos, o app **trava a gravação**
+em vez de apagar por cima — foi assim que um pedido se perdeu antes dessa proteção existir.
+Ele também avisa quando outra aba do app grava (duas abas = a última a salvar vence).
+
+Mesmo assim: depois de montar um pedido importante, clique em **⬇ Backup**.
+
 ### Fornecedores e bases
 
 **Fornecedor** é escolhido de uma lista — hoje só a **ANT Ferramentas** (razão social, CNPJ,
@@ -45,8 +55,9 @@ emitente, ele avisa que a nota é de outro fornecedor. Para cadastrar mais forne
 a lista fica em `FORNECEDORES_PADRAO`, no começo do bloco de pedidos.
 
 **Base de entrega** também é lista, com as bases do cadastro de oficinas da Vammo
-(`mechanics_r.location`): **SBC, Osasco, Mooca e São Mateus**, mais *Nova base / outro
-destino*, que abre um campo livre — é o caso de comprar ferramental para uma base que
+(`mechanics_r.location`): **SBC, Osasco, Mooca e São Mateus**, cada uma com **endereço de
+entrega** (📍 Endereços das bases, na tela de pedidos) que sai no documento, no WhatsApp e
+no CSV. Há ainda *Nova base / outro destino*, que abre campos livres de nome e endereço — é o caso de comprar ferramental para uma base que
 ainda vai abrir. Fornecedor e base viraram obrigatórios para o pedido sair do rascunho.
 - **Datas**: clique no campo e o calendário abre. Dá para digitar também — e uma data com
   ano impossível (o campo antigo estragava o ano enquanto você digitava) é recusada.
