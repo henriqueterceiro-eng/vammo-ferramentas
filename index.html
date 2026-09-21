@@ -2573,18 +2573,58 @@ function importar(inp){
     try{
       const d = JSON.parse(fr.result);
       if(!d.catalogo) throw new Error('arquivo não parece um backup deste app');
-      if(!confirm('Restaurar o backup? O que está no navegador agora será substituído por:\n' +
-        (d.catalogo||[]).length + ' ferramentas, ' + (d.notas||[]).length + ' notas, ' +
-        (d.listas||[]).length + ' listas.')) return;
-      BD = {catalogo: d.catalogo||[], notas: d.notas||[], listas: d.listas||[],
-            pedidos: d.pedidos||[], kits: d.kits||[], fornecedores: d.fornecedores||[],
-            bases: d.bases||[],
-            cfg: Object.assign({criterio:'ultimo', listaAtual:null, pedidoAberto:null}, d.cfg||{})};
-      migraParaPedidos();
-      salva(); pintaTudo(); aviso('Backup restaurado.');
+      ARQUIVO_LIDO = d;
+      const nP = (d.pedidos||[]).length, nC = (d.catalogo||[]).length;
+      janela('<h3>Restaurar backup</h3>' +
+        '<p style="color:var(--txt2);font-size:12.5px;margin-top:0">O arquivo traz <b>' + nC +
+          ' ferramentas</b>, <b>' + (d.notas||[]).length + ' notas</b> e <b>' + nP + ' pedido(s)</b>.<br>' +
+          'Neste navegador há ' + (BD.catalogo||[]).length + ' ferramentas e ' +
+          (BD.pedidos||[]).length + ' pedido(s).</p>' +
+        '<div class="grade2" style="margin-top:12px">' +
+          '<button class="primario" style="padding:15px;text-align:left" onclick="fechaJanela();aplicaArquivo(\'somar\')">' +
+            '<b>Somar os pedidos</b><br><span style="font-weight:400;font-size:12px">' +
+            'mantém tudo que já está aqui e acrescenta os pedidos do arquivo</span></button>' +
+          '<button style="padding:15px;text-align:left" onclick="fechaJanela();aplicaArquivo(\'substituir\')">' +
+            '<b>Substituir tudo</b><br><span style="font-size:12px;color:var(--txt2)">' +
+            'o que está no navegador é trocado pelo arquivo</span></button>' +
+        '</div>' +
+        '<div class="linha" style="margin-top:14px"><button class="mini" onclick="fechaJanela()">cancelar</button></div>');
     }catch(e){ aviso('Não deu para ler o arquivo: ' + e.message, 5000); }
   };
   fr.readAsText(f); inp.value = '';
+}
+let ARQUIVO_LIDO = null;
+function aplicaArquivo(modo){
+  const d = ARQUIVO_LIDO;
+  if(!d) return;
+  if(modo === 'substituir'){
+    BD = {catalogo: d.catalogo||[], notas: d.notas||[], listas: d.listas||[],
+          pedidos: d.pedidos||[], kits: d.kits||[], fornecedores: d.fornecedores||[],
+          bases: d.bases||[],
+          cfg: Object.assign({criterio:'ultimo', listaAtual:null, pedidoAberto:null}, d.cfg||{})};
+    migraParaPedidos();
+    salva(); pintaTudo(); aviso('Backup restaurado: ' + BD.pedidos.length + ' pedido(s).');
+    ARQUIVO_LIDO = null; return;
+  }
+  // somar: pedido com número repetido entra com sufixo, para nada ser perdido
+  let novos = 0;
+  const numeros = new Set((BD.pedidos||[]).map(x => x.numero));
+  for(const ped of (d.pedidos||[])){
+    const copia = JSON.parse(JSON.stringify(ped));
+    if((BD.pedidos||[]).some(x => x.id === copia.id)) copia.id = id();
+    if(numeros.has(copia.numero)) copia.numero = copia.numero + ' (recuperado)';
+    numeros.add(copia.numero);
+    BD.pedidos.push(copia); novos++;
+  }
+  // ferramenta do arquivo que não existe aqui entra junto, senão o pedido fica sem preço
+  let ferrNovas = 0;
+  for(const f of (d.catalogo||[]))
+    if(!BD.catalogo.some(c => c.id === f.id)){ BD.catalogo.push(JSON.parse(JSON.stringify(f))); ferrNovas++; }
+  for(const k of (d.kits||[]))
+    if(!(BD.kits||[]).some(x => x.id === k.id)) (BD.kits = BD.kits||[]).push(JSON.parse(JSON.stringify(k)));
+  salva(); pintaTudo();
+  aviso(novos + ' pedido(s) somado(s)' + (ferrNovas ? ' e ' + ferrNovas + ' ferramenta(s) que faltavam' : '') + '.');
+  ARQUIVO_LIDO = null;
 }
 
 /* Catálogo de partida embutido no app: só entra quando o navegador está zerado,
@@ -2669,7 +2709,7 @@ document.getElementById('janela').addEventListener('click', e => {
   if(e.target.id === 'janela') fechaJanela();
 });
 
-const APP_VERSAO = 'v18 · 21/09/2026';
+const APP_VERSAO = 'v19 · 21/09/2026';
 /* Duas abas do app gravam no mesmo lugar: a última a salvar apaga o que a outra fez. */
 window.addEventListener('storage', function(e){
   if(e.key !== CHAVE_LS) return;
